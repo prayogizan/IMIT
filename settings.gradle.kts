@@ -23,5 +23,14 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "IMIT"
+
 include(":app")
- 
+include(":core:model")
+include(":core:network")
+include(":core:database")
+include(":core:download")
+include(":core:player")
+include(":core:designsystem")
+include(":feature:catalog")
+include(":feature:details")
+include(":feature:downloads")
