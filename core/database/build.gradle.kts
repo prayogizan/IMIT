@@ -31,6 +31,7 @@ dependencies {
 
     // Room (3.x - KTX merged into runtime, compiler handled by Room Gradle plugin)
     implementation(libs.room.runtime)
+    ksp(libs.room.compiler)
 
     // Coroutines
     implementation(libs.coroutines.android)
@@ -38,4 +39,7 @@ dependencies {
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.room.testing)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(libs.koin.test)
 }
