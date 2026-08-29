@@ -1,0 +1,41 @@
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.room)
+}
+
+android {
+    namespace = "com.uncaan.imit.core.database"
+    compileSdk = 37
+
+    defaultConfig {
+        minSdk = 24
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+room3 {
+    schemaDirectory("$projectDir/schemas")
+}
+
+dependencies {
+    implementation(project(":core:model"))
+
+    // Koin
+    implementation(platform(libs.koin.bom))
+    implementation(libs.koin.android)
+
+    // Room (3.x - KTX merged into runtime, compiler handled by Room Gradle plugin)
+    implementation(libs.room.runtime)
+
+    // Coroutines
+    implementation(libs.coroutines.android)
+
+    // Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.room.testing)
+}
