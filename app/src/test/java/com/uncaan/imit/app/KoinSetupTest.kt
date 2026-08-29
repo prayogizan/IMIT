@@ -1,6 +1,5 @@
 package com.uncaan.imit.app
 
-import android.app.Application
 import com.uncaan.imit.core.database.di.databaseModule
 import com.uncaan.imit.core.download.di.downloadModule
 import com.uncaan.imit.core.network.di.networkModule
@@ -8,32 +7,35 @@ import com.uncaan.imit.core.player.di.playerModule
 import com.uncaan.imit.feature.catalog.di.catalogModule
 import com.uncaan.imit.feature.details.di.detailsModule
 import com.uncaan.imit.feature.downloads.di.downloadsModule
-import org.koin.android.ext.koin.androidContext
-import org.koin.android.ext.koin.androidLogger
-import org.koin.androidx.workmanager.koin.workManagerFactory
+import org.junit.After
+import org.junit.Assert.assertNotNull
+import org.junit.Test
 import org.koin.core.context.startKoin
-import org.koin.core.logger.Level
+import org.koin.core.context.stopKoin
+import org.koin.test.KoinTest
 
-class IMITApplication : Application() {
+class KoinSetupTest : KoinTest {
 
-    override fun onCreate() {
-        super.onCreate()
+    @After
+    fun tearDown() {
+        stopKoin()
+    }
 
-        startKoin {
-            androidLogger(if (BuildConfig.DEBUG) Level.DEBUG else Level.NONE)
-            androidContext(this@IMITApplication)
-            workManagerFactory()
+    @Test
+    fun `verify all Koin modules can be initialized together`() {
+        val koinApp = startKoin {
             modules(
-                // Core
                 networkModule,
                 databaseModule,
                 downloadModule,
                 playerModule,
-                // Features
                 catalogModule,
                 detailsModule,
                 downloadsModule,
             )
         }
+
+        assertNotNull(koinApp)
+        assertNotNull(koinApp.koin)
     }
 }
