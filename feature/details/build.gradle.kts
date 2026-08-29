@@ -37,6 +37,14 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.tooling.preview)
+
+    // Coil (Image loading)
+    implementation(libs.coil.compose)
+
+    // Debug
+    debugImplementation(libs.compose.tooling)
 
     // Navigation
     implementation(libs.navigation.compose)
