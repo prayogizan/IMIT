@@ -29,12 +29,17 @@ dependencies {
 
     // Koin
     implementation(platform(libs.koin.bom))
+    implementation(libs.koin.android)
     implementation(libs.koin.androidx.compose)
 
     // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+
+    // Image loading
+    implementation(libs.coil.compose)
 
     // Navigation
     implementation(libs.navigation.compose)
