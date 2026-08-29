@@ -55,6 +55,7 @@ retrofit-kotlinx-serialization = { group = "com.squareup.retrofit2", name = "con
 
 # Room (3.x - new artifacts, KTX merged into runtime)
 room-runtime = { group = "androidx.room3", name = "room3-runtime", version.ref = "room" }
+room-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room" }
 room-testing = { group = "androidx.room3", name = "room3-testing", version.ref = "room" }
 
 # Media3
