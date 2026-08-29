@@ -31,6 +31,8 @@ dependencies {
     // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
 
     // Media3
     implementation(libs.media3.exoplayer)

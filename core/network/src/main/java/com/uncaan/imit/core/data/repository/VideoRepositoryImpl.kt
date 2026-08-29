@@ -8,8 +8,8 @@ import com.uncaan.imit.core.model.VideoDetail
 import com.uncaan.imit.core.network.api.ArchiveApiService
 import com.uncaan.imit.core.network.mapper.toCourseVideo
 import com.uncaan.imit.core.network.mapper.toVideoDetail
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 
 class VideoRepositoryImpl(
@@ -18,50 +18,73 @@ class VideoRepositoryImpl(
 ) : VideoRepository {
 
     override fun getMitOcwVideos(page: Int): Flow<Result<List<CourseVideo>>> = flow {
-        try {
+        val result = try {
             val response = apiService.searchMitOcwCollection(page = page)
             val docs = response.response?.docs ?: emptyList()
             val videos = docs.map { it.toCourseVideo() }
 
             if (page == 1) {
                 val sevenDaysAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-                cacheDao.deleteExpired(sevenDaysAgo)
+                try {
+                    cacheDao.deleteExpired(sevenDaysAgo)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Non-fatal cache cleanup failure
+                }
             }
-            cacheDao.insertAll(videos.map { it.toEntity() })
-            emit(Result.success(videos))
+            try {
+                cacheDao.insertAll(videos.map { it.toEntity() })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Non-fatal caching failure
+            }
+            Result.success(videos)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            emitCachedOrError(e)
+            val cached = try {
+                cacheDao.getCachedVideos()
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            if (cached.isNotEmpty()) {
+                Result.success(cached.map { it.toCourseVideo() })
+            } else {
+                Result.failure(e)
+            }
         }
+
+        emit(result)
     }
 
     override fun getVideoDetail(identifier: String): Flow<Result<VideoDetail>> = flow {
-        try {
+        val result = try {
             val response = apiService.getItemMetadata(identifier)
-            emit(Result.success(response.toVideoDetail()))
+            Result.success(response.toVideoDetail())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
+        emit(result)
     }
 
     override fun searchVideos(query: String, page: Int): Flow<Result<List<CourseVideo>>> = flow {
-        try {
+        val result = try {
             val searchQuery = "collection:mit_ocw AND mediatype:movies AND ($query)"
             val response = apiService.searchMitOcwCollection(query = searchQuery, page = page)
             val docs = response.response?.docs ?: emptyList()
-            emit(Result.success(docs.map { it.toCourseVideo() }))
+            Result.success(docs.map { it.toCourseVideo() })
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            emit(Result.failure(e))
+            Result.failure(e)
         }
-    }
-
-    private suspend fun FlowCollector<Result<List<CourseVideo>>>.emitCachedOrError(
-        originalError: Exception
-    ) {
-        val cached = cacheDao.getCachedVideos()
-        if (cached.isNotEmpty()) {
-            emit(Result.success(cached.map { it.toCourseVideo() }))
-        } else {
-            emit(Result.failure(originalError))
-        }
+        emit(result)
     }
 }
