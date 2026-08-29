@@ -19,6 +19,7 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:database"))
 
     // Koin
     implementation(platform(libs.koin.bom))
@@ -40,4 +41,5 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.turbine)
+    testImplementation(libs.koin.test)
 }

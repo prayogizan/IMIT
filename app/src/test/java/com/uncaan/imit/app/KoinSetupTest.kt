@@ -2,6 +2,7 @@ package com.uncaan.imit.app
 
 import com.uncaan.imit.core.database.di.databaseModule
 import com.uncaan.imit.core.download.di.downloadModule
+import com.uncaan.imit.core.network.di.dataModule
 import com.uncaan.imit.core.network.di.networkModule
 import com.uncaan.imit.core.player.di.playerModule
 import com.uncaan.imit.feature.catalog.di.catalogModule
@@ -26,6 +27,7 @@ class KoinSetupTest : KoinTest {
         val koinApp = startKoin {
             modules(
                 networkModule,
+                dataModule,
                 databaseModule,
                 downloadModule,
                 playerModule,
