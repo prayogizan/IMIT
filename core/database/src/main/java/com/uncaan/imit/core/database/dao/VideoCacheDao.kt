@@ -19,6 +19,9 @@ interface VideoCacheDao {
     @Query("SELECT * FROM video_cache ORDER BY cached_at DESC")
     fun getAllVideos(): Flow<List<VideoCacheEntity>>
 
+    @Query("SELECT * FROM video_cache ORDER BY cached_at DESC")
+    suspend fun getCachedVideos(): List<VideoCacheEntity>
+
     @Query("SELECT * FROM video_cache WHERE identifier = :identifier")
     suspend fun getVideoById(identifier: String): VideoCacheEntity?
 
