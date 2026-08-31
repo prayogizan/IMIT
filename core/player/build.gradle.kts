@@ -27,12 +27,14 @@ dependencies {
     // Koin
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.android)
+    implementation(libs.koin.androidx.compose)
 
     // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
+    implementation(libs.compose.tooling.preview)
 
     // Media3
     implementation(libs.media3.exoplayer)
@@ -42,6 +44,14 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
 
+    // Debug
+    debugImplementation(libs.compose.tooling)
+
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.turbine)
+    testImplementation(libs.koin.test)
+    testImplementation(libs.koin.test.junit4)
 }
