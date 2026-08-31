@@ -192,7 +192,8 @@ ExoPlayer wrapper for video playback.
 | File | Purpose |
 |------|---------|
 | `VideoPlayerManager.kt` | Singleton player lifecycle manager. Lazy ExoPlayer creation, auto-retry on network errors (exponential backoff, max 3 retries). |
-| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL changes and `DisposableEffect` for player cleanup. |
+| `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
+| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL changes, `DisposableEffect` for player cleanup, and PiP / top bar controls. |
 | `di/PlayerModule.kt` | Koin module providing `VideoPlayerManager` singleton. |
 
 ### Player Features
@@ -201,6 +202,7 @@ ExoPlayer wrapper for video playback.
 - Exponential backoff retry: 1s, 2s, 4s on `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`
 - Retry counter resets on `STATE_READY`
 - Player released on screen disposal via `DisposableEffect`
+- Picture-in-Picture (PiP) mode support with 16:9 aspect ratio on Android 8.0+ (API 26+)
 
 ---
 
