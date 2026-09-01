@@ -66,7 +66,10 @@ Interface binding: `single<VideoRepository> { VideoRepositoryImpl(...) }`
 
 ### `downloadModule` (`core:download`)
 
-Empty module (WIP). Reserved for WorkManager workers.
+| Scope | Type | Binding |
+|-------|------|---------|
+| `single` | `DownloadManagerHelper` | `DownloadManagerHelper(androidContext())` |
+| `worker` | `VideoDownloadWorker` | `VideoDownloadWorker(get(), get(), get(), get())` |
 
 ### `catalogModule` (`feature:catalog`)
 
