@@ -17,6 +17,7 @@
 | [Navigation](navigation.md) | NavGraph, routes, bottom bar, deep linking, parameter passing |
 | [Dependency Injection](dependency_injection.md) | Koin modules, wiring, Compose integration, module composition |
 | [Testing Guide](testing.md) | Test stack, patterns, conventions, coverage targets |
+| [CI/CD Pipeline](ci_cd.md) | GitHub Actions CI architecture, quality gates, and build verification |
 
 ## Quick Start
 
@@ -25,11 +26,15 @@
 git clone <repo-url>
 cd IMIT
 
-# Build debug APK
+# Build debug APK (all flavors)
 ./gradlew assembleDebug
 
+# Build specific flavor
+./gradlew assembleDevDebug
+./gradlew assembleProdDebug
+
 # Run unit tests
-./gradlew test
+./gradlew testDebugUnitTest
 
 # Run specific module tests
 ./gradlew :feature:catalog:test
