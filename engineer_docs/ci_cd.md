@@ -140,6 +140,7 @@ Before pushing commits or opening a PR, developers can execute the exact CI step
 | Failure Mode | Diagnosis Step | Resolution |
 |---|---|---|
 | **Wrapper Validation Failed** | Hash mismatch in `gradle-wrapper.jar` | Run `./gradlew wrapper --gradle-version 9.5.0` and commit the official wrapper binary |
+| **Permission Denied (`./gradlew`)** | Missing Unix execute bit on `gradlew` | The pipeline automatically runs `chmod +x gradlew`; ensure git mode is preserved via `git update-index --chmod=+x gradlew` |
 | **Lint Error** | Review `lint-reports` artifact from Actions tab | Fix lint warnings marked as `Error` or suppress with `@SuppressLint` if intentional |
 | **Unit Test Failure** | Review `unit-test-reports` HTML report | Replicate failing test via `./gradlew :<module>:testDebugUnitTest --tests "<FailingTest>"` |
 | **Out of Memory (OOM)** | Gradle daemon killed | Increase heap allocation in `gradle.properties` (`-Xmx2048m` default) |
