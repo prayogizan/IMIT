@@ -33,6 +33,9 @@ interface DownloadedVideoDao {
     @Query("UPDATE downloaded_videos SET progress = :progress, status = :status WHERE identifier = :identifier")
     suspend fun updateProgress(identifier: String, progress: Int, status: DownloadStatus): Int
 
+    @Query("UPDATE downloaded_videos SET status = :status WHERE identifier = :identifier")
+    suspend fun updateStatus(identifier: String, status: DownloadStatus): Int
+
     @Query("UPDATE downloaded_videos SET local_file_path = :localFilePath, status = :status, downloaded_at = :downloadedAt WHERE identifier = :identifier")
     suspend fun markCompleted(
         identifier: String,
