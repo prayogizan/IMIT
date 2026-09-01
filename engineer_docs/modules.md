@@ -208,15 +208,22 @@ ExoPlayer wrapper for video playback.
 
 ## `:core:download` — Download Management
 
-**Status: Work in Progress (WIP)**
+WorkManager background download engine with Koin worker injection, foreground notification progress tracking, and storage guard (<500MB via `StatFs`).
 
-Currently contains only a placeholder Koin module. Intended for WorkManager-based download workers.
+### File Inventory
 
-```kotlin
-val downloadModule = module {
-    // TODO: Provide DownloadManager, WorkManager workers
-}
-```
+| File | Purpose |
+|------|---------|
+| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, cooperative stop cleanup, and `CancellationException` rethrow rule. |
+| `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), unique work tagging, cancellation, disk storage checks, and reactive `WorkInfo` Flow observation. |
+| `di/DownloadModule.kt` | Koin module providing `DownloadManagerHelper` singleton and `VideoDownloadWorker` via Koin's `worker { }` DSL. |
+
+### Key Behaviors
+
+- **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
+- **Storage Space Guard:** Downloads abort and fail early if the device has less than 500MB free disk space.
+- **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
+- **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; deletes partial files and updates status to `PAUSED`. Propagates `CancellationException` without swallowing.
 
 ---
 
