@@ -87,6 +87,10 @@ jobs:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
           add-job-summary: 'on-failure'
 
+      # Ensure wrapper script is executable on Linux runners
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       # Runs Android Lint across all modules. Uses --continue to inspect all modules
       # even if one fails, providing complete error diagnostics in a single run.
       - name: Run Android Lint
@@ -120,11 +124,17 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Configures Gradle build environment with automated caching.
+      # PRs are restricted to read-only cache access to prevent cache pollution.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
           add-job-summary: 'on-failure'
+
+      # Ensure wrapper script is executable on Linux runners
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       # Executes unit test tasks across all modules (testDevDebugUnitTest, testProdDebugUnitTest)
       - name: Run Unit Tests
@@ -161,11 +171,17 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Configures Gradle build environment with automated caching.
+      # PRs are restricted to read-only cache access to prevent cache pollution.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
           add-job-summary: 'always'
+
+      # Ensure wrapper script is executable on Linux runners
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       # 1. assembleDebug: Packages app-dev-debug.apk and app-prod-debug.apk
       # 2. assembleProdRelease: Validates R8 shrinking, obfuscation, resource shrinking,
