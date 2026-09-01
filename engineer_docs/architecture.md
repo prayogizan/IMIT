@@ -244,3 +244,33 @@ Single `onEvent()` entry point. No public methods besides `onEvent()` and read-o
 - **Java Compatibility**: Java 17 source/target
 - **Compose Compiler**: Managed via `kotlin.compose` plugin (Kotlin 2.x)
 - **KSP**: Used for Room annotation processing (not KAPT)
+
+## Product Flavors & Build Variants
+
+Application module (`:app`) defines the `environment` flavor dimension. Library modules (`core:*`, `feature:*`) remain flavor-agnostic.
+
+| Flavor | Dimension | Application ID | Version Name | App Name | Purpose |
+|---|---|---|---|---|---|
+| `dev` | `environment` | `com.uncaan.imit.dev` | `0.0.1-dev` | `IMIT Dev` | Development, side-by-side device installation |
+| `prod` | `environment` | `com.uncaan.imit` | `0.0.1` | `IMIT` | Production release candidate |
+
+### Semantic Versioning
+
+- **Version Code**: `1` (integer, monotonically increasing)
+- **Version Name**: `0.0.1` (SemVer `MAJOR.MINOR.PATCH`)
+- **Flavor Suffix**: `dev` appends `-dev` (`versionNameSuffix = "-dev"`)
+
+## ProGuard & R8 Optimization
+
+Release builds (`prodRelease`, `devRelease`) enforce full R8 code shrinking, bytecode optimization, obfuscation, and resource stripping (`isMinifyEnabled = true`, `isShrinkResources = true`).
+
+- **Optimization Profile:** Uses `proguard-android-optimize.txt` for cross-method inlining and devirtualization.
+- **Rule Architecture:**
+  - **Koin DI:** Keeps `org.koin.**` classes and constructor injection reflection signatures.
+  - **Kotlinx Serialization:** Keeps `@Serializable` models, `@SerialName` fields, and `KSerializer` implementations across `core:model` and `core:network`.
+  - **Room 3.x:** Protects RoomDatabase implementations, DAOs, entities, and type converters (`androidx.room3.*`).
+  - **Retrofit & OkHttp:** Preserves HTTP service method annotations and parameter reflection.
+  - **WorkManager:** Preserves `ListenableWorker` reflection constructor signatures (`Context`, `WorkerParameters`).
+  - **Media3 & Coil:** Keeps ExoPlayer codecs/renderers and Coil 3 image pipeline components.
+- **Deobfuscation Mapping:** R8 produces mapping files under `app/build/outputs/mapping/{flavor}Release/mapping.txt`, retained for crash report symbolication.
+
