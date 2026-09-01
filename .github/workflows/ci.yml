@@ -1,0 +1,198 @@
+# ==============================================================================
+# IMIT (Internet Archive MIT OCW Viewer) - Continuous Integration Pipeline
+# ==============================================================================
+# This workflow automates continuous integration quality gates for the IMIT
+# multi-module Android application.
+#
+# Pipeline Stages:
+#   1. validate-wrapper : Verifies cryptographic SHA-256 integrity of Gradle wrapper.
+#   2. lint             : Runs Android Lint static analysis across all modules/variants.
+#   3. unit-tests       : Executes JUnit4/MockK/Turbine test suites across all 10 modules.
+#   4. build            : Assembles multi-flavor debug APKs and verifies R8 release
+#                         minification (assembleProdRelease), archiving mappings.
+# ==============================================================================
+
+name: IMIT CI
+
+on:
+  # Trigger build on code push to main integration branches
+  push:
+    branches: [ main, pre-main ]
+
+  # Trigger build on all pull requests targeting main integration branches
+  pull_request:
+    branches: [ main, pre-main ]
+
+  # Enable manual on-demand execution from the GitHub Actions console
+  workflow_dispatch:
+
+# ------------------------------------------------------------------------------
+# Concurrency Management:
+# Prevents wasted compute by cancelling obsolete in-flight runs when new commits
+# are pushed to the same PR. Push builds to main/pre-main run to completion.
+# ------------------------------------------------------------------------------
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# ------------------------------------------------------------------------------
+# Least-Privilege Permissions:
+# Default to read-only access to repository contents for enhanced security.
+# ------------------------------------------------------------------------------
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================================
+  # Stage 1: Gradle Wrapper Validation
+  # ============================================================================
+  # Cryptographically validates gradlew.jar checksums against official Gradle
+  # release hashes to protect the pipeline against supply chain attacks.
+  # ============================================================================
+  validate-wrapper:
+    name: Validate Gradle Wrapper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+  # ============================================================================
+  # Stage 2: Android Lint & Static Analysis
+  # ============================================================================
+  # Analyzes source code, XML resources, and manifests across all 10 modules
+  # and product flavors (devDebug, prodDebug) for API and security issues.
+  # ============================================================================
+  lint:
+    name: Lint & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # JDK 21 (Temurin) is required by Gradle 9.5 daemon JVM (gradle-daemon-jvm.properties)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Configures Gradle build environment with automated caching.
+      # PRs are restricted to read-only cache access to prevent cache pollution.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
+          add-job-summary: 'on-failure'
+
+      # Runs Android Lint across all modules. Uses --continue to inspect all modules
+      # even if one fails, providing complete error diagnostics in a single run.
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --continue --stacktrace
+
+      # Always upload HTML/XML lint reports for triage, regardless of pass or fail.
+      - name: Upload Lint Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-reports
+          path: '**/build/reports/lint-results-debug.*'
+          retention-days: 7
+
+  # ============================================================================
+  # Stage 3: Unit Test Suite Execution
+  # ============================================================================
+  # Executes unit tests across domain, network, database, download, and feature
+  # presentation layers (Turbine Flow assertions, MockWebServer, MockK stubs).
+  # ============================================================================
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
+          add-job-summary: 'on-failure'
+
+      # Executes unit test tasks across all modules (testDevDebugUnitTest, testProdDebugUnitTest)
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --continue --stacktrace
+
+      # Upload XML test results and HTML reports for test inspection
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+
+  # ============================================================================
+  # Stage 4: Build Verification, R8 Minification & Artifact Archival
+  # ============================================================================
+  # Compiles and packages APKs. Depends on lint and unit-tests passing.
+  # Verifies both debug flavors AND production release with full R8 shrinking.
+  # ============================================================================
+  build:
+    name: Assemble APKs & Verify R8
+    needs: [lint, unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/pre-main' }}
+          add-job-summary: 'always'
+
+      # 1. assembleDebug: Packages app-dev-debug.apk and app-prod-debug.apk
+      # 2. assembleProdRelease: Validates R8 shrinking, obfuscation, resource shrinking,
+      #    and lintVital for production release candidate readiness.
+      - name: Assemble Debug & Prod Release APKs
+        run: ./gradlew assembleDebug assembleProdRelease --stacktrace
+
+      # Upload dev and prod debug APKs for internal testing
+      - name: Upload Debug APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apks
+          path: app/build/outputs/apk/**/debug/*.apk
+          retention-days: 7
+
+      # Upload minified production release APK (~4.14 MB)
+      - name: Upload Prod Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-prod-release-apk
+          path: app/build/outputs/apk/prod/release/*.apk
+          retention-days: 7
+
+      # Upload R8 mapping.txt for symbolication and deobfuscation of crash stack traces
+      - name: Upload R8 Mapping File
+        uses: actions/upload-artifact@v4
+        with:
+          name: prod-release-mapping
+          path: app/build/outputs/mapping/prodRelease/mapping.txt
+          retention-days: 14
