@@ -41,8 +41,12 @@ module/
 | `core:database` | `DatabaseConvertersTest.kt` | DownloadStatus conversion |
 | | `DatabaseMappersTest.kt` | Entity ↔ Domain mapping |
 | | `DatabaseModuleTest.kt` | Koin module verification |
+| | `DownloadedVideoDaoTest.kt` | Room DAO operations, reactive Flow & status updates |
 | `core:designsystem` | `ThemeTokensTest.kt` | Theme token validation |
 | `feature:catalog` | `CatalogViewModelTest.kt` | Full ViewModel test suite |
+| `feature:details` | `DetailViewModelTest.kt` | Video details & download initiation tests |
+| `app` | `CheckModulesTest.kt` | Koin 4 verify() dependency graph validation |
+| | `KoinSetupTest.kt` | Full DI module initialization validation |
 
 ## ViewModel Test Pattern
 
@@ -188,14 +192,23 @@ class NetworkMappersTest {
 ## Koin Module Test Pattern
 
 ```kotlin
-class DataModuleTest {
+@OptIn(KoinExperimentalAPI::class)
+class CheckModulesTest : KoinTest {
+
     @Test
-    fun `module resolves all bindings`() {
-        koinApplication {
-            androidContext(mockk(relaxed = true))
-            modules(networkModule, databaseModule, dataModule)
-            checkModules()
-        }
+    fun `verify all Koin modules dependency graph`() {
+        networkModule.verify(extraTypes = listOf(Context::class))
+        dataModule.verify(extraTypes = listOf(ArchiveApiService::class, VideoCacheDao::class))
+        playerModule.verify(extraTypes = listOf(Context::class))
+        catalogViewModelModule.verify(extraTypes = listOf(VideoRepository::class))
+        detailsViewModelModule.verify(
+            extraTypes = listOf(
+                VideoRepository::class,
+                DownloadedVideoDao::class,
+                String::class
+            )
+        )
+        downloadsViewModelModule.verify()
     }
 }
 ```
