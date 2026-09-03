@@ -88,6 +88,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
     testImplementation(libs.koin.test)
     testImplementation(libs.koin.test.junit4)
     androidTestImplementation(platform(libs.compose.bom))
