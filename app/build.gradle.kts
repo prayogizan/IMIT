@@ -61,6 +61,10 @@ dependencies {
     implementation(project(":core:player"))
     implementation(project(":core:designsystem"))
 
+    // Coil (image loading configuration)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
+
     // Feature modules
     implementation(project(":feature:catalog"))
     implementation(project(":feature:details"))
