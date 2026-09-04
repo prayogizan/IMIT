@@ -143,12 +143,15 @@ data class DownloadedVideoEntity(
 | Insert | `insert(entity)` | — | Upsert single download record |
 | Insert batch | `insertAll(list)` | — | Batch upsert |
 | Get all (reactive) | `getAllDownloadedVideos()` | `Flow<List<...>>` | Observe downloads, newest first |
+| Get all (alias) | `getAllDownloads()` | `Flow<List<...>>` | Observe downloads, newest first |
 | Get by ID (reactive) | `getDownloadedVideoById(id)` | `Flow<Entity?>` | Observe single download |
 | Get by ID (one-shot) | `getDownloadedVideoByIdSync(id)` | `Entity?` | Suspend lookup |
 | Get by status | `getDownloadedVideosByStatus(status)` | `Flow<List<...>>` | Filter by DownloadStatus |
+| Total size (completed) | `getTotalDownloadedSize()` | `Long` | Sum bytes of completed downloads |
 | Update progress | `updateProgress(id, progress, status)` | `Int` | Update progress + status |
 | Mark completed | `markCompleted(id, localPath, status, time)` | `Int` | Set path + COMPLETED status |
 | Delete by ID | `deleteById(id)` | `Int` | Delete single record |
+| Delete by ID (alias) | `deleteDownload(id)` | `Int` | Delete single record |
 | Delete entity | `delete(entity)` | `Int` | Delete by entity |
 | Clear all | `clearAll()` | `Int` | Delete everything |
 

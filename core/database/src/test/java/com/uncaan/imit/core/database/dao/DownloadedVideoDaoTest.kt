@@ -179,4 +179,38 @@ class DownloadedVideoDaoTest {
             assertTrue(awaitItem().isEmpty())
         }
     }
+
+    @Test
+    fun `getAllDownloads emits same reactive list as getAllDownloadedVideos`() = runTest {
+        val entity = createEntity("v-download-alias", "Alias Video")
+        dao.insert(entity)
+
+        dao.getAllDownloads().test {
+            val list = awaitItem()
+            assertEquals(1, list.size)
+            assertEquals("v-download-alias", list.first().identifier)
+        }
+    }
+
+    @Test
+    fun `deleteDownload removes record by identifier`() = runTest {
+        val entity = createEntity("v-to-delete", "To Delete")
+        dao.insert(entity)
+
+        val deletedCount = dao.deleteDownload("v-to-delete")
+        assertEquals(1, deletedCount)
+        assertNull(dao.getDownloadedVideoByIdSync("v-to-delete"))
+    }
+
+    @Test
+    fun `getTotalDownloadedSize calculates total bytes of completed videos only`() = runTest {
+        val completed1 = createEntity("v-c1", status = DownloadStatus.COMPLETED).copy(fileSizeBytes = 100L)
+        val completed2 = createEntity("v-c2", status = DownloadStatus.COMPLETED).copy(fileSizeBytes = 250L)
+        val downloading = createEntity("v-d1", status = DownloadStatus.DOWNLOADING).copy(fileSizeBytes = 500L)
+
+        dao.insertAll(listOf(completed1, completed2, downloading))
+
+        val totalSize = dao.getTotalDownloadedSize()
+        assertEquals(350L, totalSize)
+    }
 }

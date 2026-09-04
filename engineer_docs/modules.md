@@ -278,18 +278,23 @@ Detail screen with video metadata, quality selection, streaming, and download in
 
 ## `:feature:downloads` — Downloads Manager
 
-**Status: Minimal Implementation**
+**Status: Completed**
 
-Currently shows a placeholder "Downloads" text. Full implementation pending `core:download` completion.
+Manages offline video library with real-time Room observation, device storage telemetry, offline video playback, and deletion confirmation lifecycle.
 
-```kotlin
-@Composable
-fun DownloadsScreen(
-    onPlayVideo: (videoUrl: String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text = "Downloads", style = MaterialTheme.typography.titleLarge)
-    }
-}
-```
+### Key Components
+
+| Component | Responsibility |
+|-----------|----------------|
+| `DownloadsScreen.kt` | Material 3 UI displaying storage usage card, download list, empty state, and delete confirmation dialog |
+| `DownloadsViewModel.kt` | Observes downloaded items via `DownloadedVideoDao`, manages disk deletion via `DownloadManagerHelper`, computes storage telemetry |
+| `DownloadsUiState.kt` | Sealed interface with `Loading`, `Empty`, `Success(downloads, totalStorageUsedBytes, availableStorageMb)`, `Error(message)` |
+| `DownloadsUiEvent.kt` | Sealed interface for user interactions (`DeleteDownload`, `ConfirmDelete`, `DismissDeleteDialog`, `PlayVideo`) |
+| `DownloadsModule.kt` | Koin DI module declaring `downloadsViewModelModule` with `viewModelOf(::DownloadsViewModel)` |
+
+### Screen Capabilities
+
+- Storage telemetry banner displaying formatted storage used and free disk space with visual progress indicator.
+- Reactive `Flow` updates from `downloaded_videos` table via `DownloadedVideoDao.getAllDownloads()`.
+- Offline playback routing through `onPlayVideo` callback passing local file path or stream fallback.
+- Safe two-step deletion confirmation dialog triggering local file unlinking, database row deletion, and WorkManager task cancellation.
