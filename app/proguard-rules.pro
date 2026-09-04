@@ -54,6 +54,8 @@
 # ==============================================================================
 # Room 3.x (androidx.room3.* & androidx.room.*)
 # ==============================================================================
+-dontwarn androidx.room.**
+-dontwarn androidx.room3.**
 -keep class * extends androidx.room3.RoomDatabase
 -keep class * extends androidx.room.RoomDatabase
 -keep @androidx.room.Entity class *
@@ -75,11 +77,16 @@
 # ==============================================================================
 # Media3 / ExoPlayer (v1.11.0)
 # ==============================================================================
+-keep class androidx.media3.common.** { *; }
 -keep class androidx.media3.exoplayer.** { *; }
 -keep class androidx.media3.extractor.** { *; }
 -keep class androidx.media3.ui.** { *; }
+-keep class androidx.media3.session.** { *; }
+-dontwarn androidx.media3.**
 
 # ==============================================================================
 # Coil 3 (v3.4.0)
 # ==============================================================================
 -dontwarn coil3.**
+-keep class coil3.** { *; }
+-keep class * implements coil3.SingletonImageLoader$Factory { *; }
