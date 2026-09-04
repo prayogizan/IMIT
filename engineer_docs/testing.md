@@ -36,8 +36,11 @@ module/
 | | `NetworkMappersTest.kt` | DTO → Domain mapping |
 | | `ArchiveDtoSerializationTest.kt` | JSON deserialization |
 | | `ConnectivityInterceptorTest.kt` | Offline detection |
+| | `ConnectivityObserverTest.kt` | Realtime connectivity Flow emission & callback lifecycle |
 | | `RateLimitInterceptorTest.kt` | Rate limiting |
 | | `DataModuleTest.kt` | Koin module verification |
+| `core:player` | `PipHelperTest.kt` | Picture-in-Picture mode configuration |
+| | `PlayerModuleTest.kt` | Koin module verification |
 | `core:database` | `DatabaseConvertersTest.kt` | DownloadStatus conversion |
 | | `DatabaseMappersTest.kt` | Entity ↔ Domain mapping |
 | | `DatabaseModuleTest.kt` | Koin module verification |
