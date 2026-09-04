@@ -1,12 +1,14 @@
 package com.uncaan.imit.core.player
 
 import android.content.Context
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.annotation.OptIn
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 
@@ -37,6 +39,7 @@ class VideoPlayerManager(private val context: Context) {
      *
      * @return The active [ExoPlayer] instance.
      */
+    @OptIn(UnstableApi::class)
     fun getPlayer(): ExoPlayer {
         if (_player == null) {
             val loadControl = DefaultLoadControl.Builder()
@@ -90,7 +93,7 @@ class VideoPlayerManager(private val context: Context) {
      */
     fun playVideo(uri: String) {
         val player = getPlayer()
-        val mediaItem = MediaItem.fromUri(Uri.parse(uri))
+        val mediaItem = MediaItem.fromUri(uri.toUri())
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = true
