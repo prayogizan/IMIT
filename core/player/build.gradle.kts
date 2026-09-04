@@ -23,6 +23,7 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(libs.core.ktx)
 
     // Koin
     implementation(platform(libs.koin.bom))
