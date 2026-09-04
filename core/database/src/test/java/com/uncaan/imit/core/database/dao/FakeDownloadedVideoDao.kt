@@ -29,6 +29,16 @@ class FakeDownloadedVideoDao : DownloadedVideoDao {
         return downloadsFlow
     }
 
+    override fun getAllDownloads(): Flow<List<DownloadedVideoEntity>> {
+        return downloadsFlow
+    }
+
+    override suspend fun getTotalDownloadedSize(): Long {
+        return downloadsMap.values
+            .filter { it.status == DownloadStatus.COMPLETED }
+            .sumOf { it.fileSizeBytes }
+    }
+
     override fun getDownloadedVideoById(identifier: String): Flow<DownloadedVideoEntity?> {
         return downloadsFlow.map { list -> list.find { it.identifier == identifier } }
     }
@@ -76,6 +86,10 @@ class FakeDownloadedVideoDao : DownloadedVideoDao {
         val removed = downloadsMap.remove(identifier) != null
         if (removed) emitUpdate()
         return if (removed) 1 else 0
+    }
+
+    override suspend fun deleteDownload(identifier: String): Int {
+        return deleteById(identifier)
     }
 
     override suspend fun delete(downloadedVideo: DownloadedVideoEntity): Int {
