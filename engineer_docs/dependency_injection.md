@@ -96,7 +96,17 @@ DetailViewModel receives `identifier: String` as first constructor parameter via
 
 ### `downloadsModule` (`feature:downloads`)
 
-Minimal module for downloads feature.
+Provides `DownloadsViewModel` injected with `DownloadedVideoDao` and `DownloadManagerHelper`:
+
+```kotlin
+val downloadsViewModelModule = module {
+    viewModelOf(::DownloadsViewModel)
+}
+
+val downloadsModule = module {
+    includes(downloadsViewModelModule)
+}
+```
 
 ## Koin DSL Quick Reference
 
