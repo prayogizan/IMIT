@@ -1,0 +1,4 @@
+Hcom/uncaan/imit/app/MainActivity;
+Hcom/uncaan/imit/feature/catalog/CatalogScreen*;
+Hcom/uncaan/imit/core/designsystem/theme/Theme*;
+Hcom/uncaan/imit/core/designsystem/component/VideoCard*;
