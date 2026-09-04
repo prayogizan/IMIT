@@ -21,6 +21,12 @@ interface DownloadedVideoDao {
     @Query("SELECT * FROM downloaded_videos ORDER BY downloaded_at DESC")
     fun getAllDownloadedVideos(): Flow<List<DownloadedVideoEntity>>
 
+    @Query("SELECT * FROM downloaded_videos ORDER BY downloaded_at DESC")
+    fun getAllDownloads(): Flow<List<DownloadedVideoEntity>>
+
+    @Query("SELECT COALESCE(SUM(file_size_bytes), 0) FROM downloaded_videos WHERE status = 'COMPLETED'")
+    suspend fun getTotalDownloadedSize(): Long
+
     @Query("SELECT * FROM downloaded_videos WHERE identifier = :identifier")
     fun getDownloadedVideoById(identifier: String): Flow<DownloadedVideoEntity?>
 
@@ -46,6 +52,9 @@ interface DownloadedVideoDao {
 
     @Query("DELETE FROM downloaded_videos WHERE identifier = :identifier")
     suspend fun deleteById(identifier: String): Int
+
+    @Query("DELETE FROM downloaded_videos WHERE identifier = :identifier")
+    suspend fun deleteDownload(identifier: String): Int
 
     @Delete
     suspend fun delete(downloadedVideo: DownloadedVideoEntity): Int

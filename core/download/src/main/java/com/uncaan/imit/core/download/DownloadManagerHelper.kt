@@ -163,6 +163,30 @@ open class DownloadManagerHelper(
     }
 
     /**
+     * Returns the available free megabytes on the download storage volume.
+     *
+     * @return Free space in megabytes, or 0 if unable to inspect.
+     */
+    open fun getAvailableStorageMb(): Long {
+        return getAvailableStorageBytes() / (1024L * 1024L)
+    }
+
+    /**
+     * Deletes a downloaded video file from the local file system.
+     *
+     * @param localFilePath Absolute path to the local video file.
+     * @return True if the file existed and was successfully deleted, false otherwise.
+     */
+    open fun deleteDownloadedFile(localFilePath: String): Boolean {
+        val file = File(localFilePath)
+        return if (file.exists()) {
+            file.delete()
+        } else {
+            false
+        }
+    }
+
+    /**
      * Resolves and creates the download storage directory if it does not exist.
      *
      * @return [File] pointing to the video download directory.

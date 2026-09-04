@@ -64,4 +64,42 @@ class DownloadManagerHelperTest {
 
         assertFalse(helper.hasEnoughStorage())
     }
+
+    @Test
+    fun `getAvailableStorageMb converts bytes to megabytes`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+
+        val helper = object : DownloadManagerHelper(mockContext, mockWorkManager) {
+            override fun getAvailableStorageBytes(): Long = 200L * 1024L * 1024L
+        }
+
+        assertEquals(200L, helper.getAvailableStorageMb())
+    }
+
+    @Test
+    fun `deleteDownloadedFile deletes existing file and returns true`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        val tempFile = File.createTempFile("test_video_", ".mp4")
+        assertTrue(tempFile.exists())
+
+        val result = helper.deleteDownloadedFile(tempFile.absolutePath)
+
+        assertTrue(result)
+        assertFalse(tempFile.exists())
+    }
+
+    @Test
+    fun `deleteDownloadedFile returns false for nonexistent file`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        val result = helper.deleteDownloadedFile("/path/to/nonexistent_file_xyz_123.mp4")
+
+        assertFalse(result)
+    }
 }

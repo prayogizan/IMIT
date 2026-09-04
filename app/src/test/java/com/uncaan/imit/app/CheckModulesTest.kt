@@ -4,6 +4,7 @@ import android.content.Context
 import com.uncaan.imit.core.data.repository.VideoRepository
 import com.uncaan.imit.core.database.dao.DownloadedVideoDao
 import com.uncaan.imit.core.database.dao.VideoCacheDao
+import com.uncaan.imit.core.download.DownloadManagerHelper
 import com.uncaan.imit.core.network.api.ArchiveApiService
 import com.uncaan.imit.core.network.di.dataModule
 import com.uncaan.imit.core.network.di.networkModule
@@ -56,6 +57,11 @@ class CheckModulesTest : KoinTest {
                 String::class
             )
         )
-        downloadsViewModelModule.verify()
+        downloadsViewModelModule.verify(
+            extraTypes = listOf(
+                DownloadedVideoDao::class,
+                DownloadManagerHelper::class
+            )
+        )
     }
 }
