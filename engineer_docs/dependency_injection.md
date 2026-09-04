@@ -38,6 +38,7 @@ startKoin {
 | `single` | `HttpLoggingInterceptor` | Level.BASIC |
 | `single` | `RateLimitInterceptor` | Rate limiting |
 | `single` | `ConnectivityInterceptor` | Network check (`getOrNull<Context>()`) |
+| `single` | `ConnectivityObserver` | `ConnectivityObserver(androidContext())` |
 | `single` | `OkHttpClient` | Interceptor chain + 30s timeouts |
 | `single` | `Retrofit` | Base URL + JSON converter |
 | `single` | `ArchiveApiService` | Retrofit.create() |
@@ -178,6 +179,7 @@ graph TD
         OKH[OkHttpClient]
         JSON[Json]
         CI[ConnectivityInterceptor]
+        CO[ConnectivityObserver]
         RI[RateLimitInterceptor]
         LI[HttpLoggingInterceptor]
     end

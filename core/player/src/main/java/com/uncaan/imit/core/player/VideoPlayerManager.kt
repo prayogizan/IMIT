@@ -7,13 +7,20 @@ import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+
+private const val MIN_BUFFER_MS = 15_000
+private const val MAX_BUFFER_MS = 50_000
+private const val BUFFER_FOR_PLAYBACK_MS = 1_500
+private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 2_000
 
 /**
  * Manages the lifecycle and playback controls of an [ExoPlayer] instance.
  *
- * Provides lazy player initialization, automatic exponential backoff retry logic
- * on network connection failures, and common playback operations (play, pause, seek, release).
+ * Provides lazy player initialization with conservative [DefaultLoadControl] buffer sizing,
+ * automatic exponential backoff retry logic on network connection failures,
+ * and common playback operations (play, pause, seek, release).
  *
  * @param context Android [Context] used to construct the [ExoPlayer] instance.
  */
@@ -24,14 +31,28 @@ class VideoPlayerManager(private val context: Context) {
     /**
      * Lazily obtains or creates the underlying [ExoPlayer] instance.
      *
-     * Configures a [Player.Listener] to handle network failures with exponential backoff
-     * (up to 3 retries with delays: 1s, 2s, 4s) and resets the retry counter when playback reaches [Player.STATE_READY].
+     * Configures a conservative [DefaultLoadControl] to limit memory consumption (<180MB RAM)
+     * and a [Player.Listener] to handle network failures with exponential backoff
+     * (up to 3 retries with delays: 1s, 2s, 4s), resetting retry counter on [Player.STATE_READY].
      *
      * @return The active [ExoPlayer] instance.
      */
     fun getPlayer(): ExoPlayer {
         if (_player == null) {
-            _player = ExoPlayer.Builder(context).build().apply {
+            val loadControl = DefaultLoadControl.Builder()
+                .setBufferDurationsMs(
+                    MIN_BUFFER_MS,
+                    MAX_BUFFER_MS,
+                    BUFFER_FOR_PLAYBACK_MS,
+                    BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
+                )
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+
+            _player = ExoPlayer.Builder(context)
+                .setLoadControl(loadControl)
+                .build()
+                .apply {
                 addListener(object : Player.Listener {
                     private var retryCount = 0
                     private val maxRetries = 3

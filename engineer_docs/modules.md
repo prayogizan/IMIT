@@ -25,7 +25,8 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 
 | File | Purpose |
 |------|---------|
-| `IMITApplication.kt` | `Application` subclass. Initializes Koin with all modules. |
+| `IMITApplication.kt` | `Application` subclass. Initializes Koin and implements `SingletonImageLoader.Factory` (15% RAM max, 50MB disk). |
+| `baseline-prof.txt` | Baseline profile rules for Ahead-of-Time (AOT) compilation (<1.5s cold start). |
 | `MainActivity.kt` | Single Activity. Sets `MitOcwTheme` and renders `MitOcwApp`. |
 | `navigation/NavRoutes.kt` | Route constants and parameterized route builders. |
 | `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations. |
@@ -76,10 +77,11 @@ com.uncaan.imit.core
 │   ├── VideoRepository.kt          # Interface
 │   └── VideoRepositoryImpl.kt      # Implementation with offline fallback
 └── network/
+    ├── ConnectivityObserver.kt     # Realtime network connectivity Flow
     ├── api/
     │   └── ArchiveApiService.kt    # Retrofit interface
     ├── di/
-    │   ├── NetworkModule.kt        # OkHttp, Retrofit, Json Koin module
+    │   ├── NetworkModule.kt        # OkHttp, Retrofit, Json, ConnectivityObserver Koin module
     │   └── DataModule.kt           # Repository binding Koin module
     ├── exception/
     │   └── NoConnectivityException.kt
@@ -191,7 +193,7 @@ ExoPlayer wrapper for video playback.
 
 | File | Purpose |
 |------|---------|
-| `VideoPlayerManager.kt` | Singleton player lifecycle manager. Lazy ExoPlayer creation, auto-retry on network errors (exponential backoff, max 3 retries). |
+| `VideoPlayerManager.kt` | Singleton player lifecycle manager. Lazy ExoPlayer creation with conservative `DefaultLoadControl` buffer sizing, auto-retry on network errors (exponential backoff, max 3 retries). |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
 | `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL changes, `DisposableEffect` for player cleanup, and PiP / top bar controls. |
 | `di/PlayerModule.kt` | Koin module providing `VideoPlayerManager` singleton. |
@@ -199,6 +201,7 @@ ExoPlayer wrapper for video playback.
 ### Player Features
 
 - Lazy initialization: player created on first `getPlayer()` call
+- Conservative `DefaultLoadControl` buffer durations (15s min, 50s max, 1.5s playback, 2s rebuffer) to maintain peak RAM < 180MB
 - Exponential backoff retry: 1s, 2s, 4s on `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`
 - Retry counter resets on `STATE_READY`
 - Player released on screen disposal via `DisposableEffect`
