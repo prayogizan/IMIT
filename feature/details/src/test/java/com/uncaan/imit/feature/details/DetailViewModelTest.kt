@@ -7,9 +7,12 @@ import com.uncaan.imit.core.database.entity.DownloadedVideoEntity
 import com.uncaan.imit.core.model.DownloadStatus
 import com.uncaan.imit.core.model.PlayableStream
 import com.uncaan.imit.core.model.VideoDetail
+import com.uncaan.imit.core.download.DownloadManagerHelper
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -26,6 +29,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
+import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailViewModelTest {
@@ -33,6 +37,7 @@ class DetailViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val videoRepository: VideoRepository = mockk()
     private val downloadedVideoDao: DownloadedVideoDao = mockk(relaxed = true)
+    private val downloadManagerHelper: DownloadManagerHelper = mockk(relaxed = true)
 
     private val sampleStreamHd = PlayableStream(
         fileName = "lecture01_720p.mp4",
@@ -66,11 +71,25 @@ class DetailViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        every {
+            downloadManagerHelper.enqueueDownload(any(), any(), any(), any())
+        } returns Result.success(UUID.randomUUID())
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    private fun createViewModel(
+        identifier: String = "mit-ocw-6.0001-lec01"
+    ): DetailViewModel {
+        return DetailViewModel(
+            identifier = identifier,
+            videoRepository = videoRepository,
+            downloadedVideoDao = downloadedVideoDao,
+            downloadManagerHelper = downloadManagerHelper
+        )
     }
 
     @Test
@@ -80,11 +99,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -105,11 +120,7 @@ class DetailViewModelTest {
             Result.failure(IOException("Server error"))
         )
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.uiState.test {
@@ -126,11 +137,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.SelectQuality(sampleStreamSd))
@@ -149,11 +156,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.StreamVideo)
@@ -184,11 +187,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns downloadedEntity
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.StreamVideo)
@@ -206,11 +205,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.DownloadVideo)
@@ -226,10 +221,58 @@ class DetailViewModelTest {
             )
         }
 
+        verify {
+            downloadManagerHelper.enqueueDownload(
+                identifier = "mit-ocw-6.0001-lec01",
+                title = sampleDetail.title,
+                downloadUrl = sampleStreamHd.streamUrl,
+                fileName = sampleStreamHd.fileName
+            )
+        }
+
         viewModel.uiState.test {
             val state = awaitItem() as DetailUiState.Success
             assertEquals(DownloadStatus.PENDING, state.downloadStatus)
             assertEquals(0, state.downloadProgress)
+            assertNull(state.downloadError)
+        }
+    }
+
+    @Test
+    fun `initiateDownload updates uiState to FAILED and marks entity FAILED when helper enqueue fails`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        every {
+            downloadManagerHelper.enqueueDownload(
+                identifier = "mit-ocw-6.0001-lec01",
+                title = sampleDetail.title,
+                downloadUrl = sampleStreamHd.streamUrl,
+                fileName = sampleStreamHd.fileName
+            )
+        } returns Result.failure(IllegalStateException("Insufficient storage space (< 500MB free)"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        coVerify {
+            downloadedVideoDao.insert(
+                match { entity ->
+                    entity.identifier == "mit-ocw-6.0001-lec01" &&
+                        entity.status == DownloadStatus.PENDING
+                }
+            )
+            downloadedVideoDao.updateStatus("mit-ocw-6.0001-lec01", DownloadStatus.FAILED)
+        }
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+            assertEquals("Insufficient storage space (< 500MB free)", state.downloadError)
         }
     }
 
@@ -240,11 +283,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.ToggleDescription)
@@ -273,11 +312,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.Retry)
@@ -296,11 +331,7 @@ class DetailViewModelTest {
         )
         coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
 
-        val viewModel = DetailViewModel(
-            identifier = "mit-ocw-6.0001-lec01",
-            videoRepository = videoRepository,
-            downloadedVideoDao = downloadedVideoDao
-        )
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.onEvent(DetailUiEvent.StreamVideo)
