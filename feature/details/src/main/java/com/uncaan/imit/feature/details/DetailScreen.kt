@@ -334,6 +334,16 @@ private fun DetailSuccessContent(
                 }
             }
 
+            // Download error message if download failed
+            if (state.downloadError != null && state.downloadStatus == DownloadStatus.FAILED) {
+                Text(
+                    text = state.downloadError,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = spacing.extraSmall)
+                )
+            }
+
             // Download progress indicator if downloading or pending
             if (state.downloadStatus != null && state.downloadStatus != DownloadStatus.FAILED) {
                 Card(
