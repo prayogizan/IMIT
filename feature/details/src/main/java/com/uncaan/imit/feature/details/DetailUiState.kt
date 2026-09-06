@@ -12,6 +12,7 @@ sealed interface DetailUiState {
         val selectedStream: PlayableStream? = null,
         val downloadStatus: DownloadStatus? = null,
         val downloadProgress: Int = 0,
+        val downloadError: String? = null,
         val isDescriptionExpanded: Boolean = false
     ) : DetailUiState
 
