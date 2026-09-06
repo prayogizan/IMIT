@@ -54,6 +54,7 @@ class CheckModulesTest : KoinTest {
             extraTypes = listOf(
                 VideoRepository::class,
                 DownloadedVideoDao::class,
+                DownloadManagerHelper::class,
                 String::class
             )
         )

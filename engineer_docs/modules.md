@@ -273,7 +273,7 @@ Detail screen with video metadata, quality selection, streaming, and download in
 - ViewModel receives `identifier` as constructor parameter (Koin `parametersOf`)
 - Player navigation via `navigateToPlayer: StateFlow<String?>` + `onPlayerNavigated()` reset
 - Quality selection: `FilterChip` with `FlowRow`, auto-selects `bestStream` (highest resolution)
-- Download: inserts `DownloadedVideoEntity` with `PENDING` status
+- Download: inserts `DownloadedVideoEntity` with `PENDING` status and schedules background work via `DownloadManagerHelper`
 - Plays local file if download `COMPLETED`, otherwise streams remote URL
 - Description: expandable with `animateContentSize()`, 4-line clamp
 

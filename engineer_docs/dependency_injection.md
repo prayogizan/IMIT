@@ -88,12 +88,23 @@ val catalogModule = module {
 Uses `parametersOf` for identifier injection:
 
 ```kotlin
+val detailsViewModelModule = module {
+    viewModel { (identifier: String) ->
+        DetailViewModel(
+            identifier = identifier,
+            videoRepository = get(),
+            downloadedVideoDao = get(),
+            downloadManagerHelper = get()
+        )
+    }
+}
+
 val detailsModule = module {
     includes(detailsViewModelModule)
 }
 ```
 
-DetailViewModel receives `identifier: String` as first constructor parameter via `koinViewModel(parameters = { parametersOf(identifier) })`.
+DetailViewModel receives `identifier: String` as first constructor parameter via `koinViewModel(parameters = { parametersOf(identifier) })`, resolving `VideoRepository`, `DownloadedVideoDao`, and `DownloadManagerHelper` from Koin.
 
 ### `downloadsModule` (`feature:downloads`)
 
@@ -166,6 +177,7 @@ graph TD
     subgraph "Feature Layer"
         CVM[CatalogViewModel]
         DVM[DetailViewModel]
+        DMVM[DownloadsViewModel]
     end
 
     subgraph "Data Layer"
@@ -194,9 +206,18 @@ graph TD
         PM[VideoPlayerManager]
     end
 
+    subgraph "Download"
+        DMH[DownloadManagerHelper]
+        VDW[VideoDownloadWorker]
+    end
+
     CVM --> VR
     DVM --> VR
     DVM --> DVD
+    DVM --> DMH
+    DMVM --> DVD
+    DMVM --> DMH
+    VDW --> DVD
     VR -.->|"impl"| VRI
     VRI --> API
     VRI --> VCD

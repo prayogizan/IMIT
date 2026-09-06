@@ -13,10 +13,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+import com.uncaan.imit.core.download.DownloadManagerHelper
+
+/**
+ * ViewModel for the Detail screen managing lecture metadata, quality selection, video streaming, and download triggers.
+ *
+ * Exposes UI states via [uiState] and navigation events via [navigateToPlayer].
+ * Processes user interactions through the single [onEvent] dispatch method.
+ *
+ * @param identifier Unique Archive.org identifier for the lecture.
+ * @param videoRepository Repository providing video metadata from network.
+ * @param downloadedVideoDao Room DAO for tracking download state and local file paths.
+ * @param downloadManagerHelper Helper managing background WorkManager download jobs and storage validation.
+ * @see DetailUiState For the complete state hierarchy.
+ * @see DetailUiEvent For supported user interactions.
+ */
 class DetailViewModel(
     private val identifier: String,
     private val videoRepository: VideoRepository,
-    private val downloadedVideoDao: DownloadedVideoDao
+    private val downloadedVideoDao: DownloadedVideoDao,
+    private val downloadManagerHelper: DownloadManagerHelper
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
@@ -102,9 +118,29 @@ class DetailViewModel(
                     status = DownloadStatus.PENDING
                 )
             )
-            _uiState.value = current.copy(
-                downloadStatus = DownloadStatus.PENDING,
-                downloadProgress = 0
+
+            val enqueueResult = downloadManagerHelper.enqueueDownload(
+                identifier = identifier,
+                title = current.detail.title,
+                downloadUrl = stream.streamUrl,
+                fileName = stream.fileName
+            )
+
+            enqueueResult.fold(
+                onSuccess = {
+                    _uiState.value = current.copy(
+                        downloadStatus = DownloadStatus.PENDING,
+                        downloadProgress = 0,
+                        downloadError = null
+                    )
+                },
+                onFailure = { error ->
+                    downloadedVideoDao.updateStatus(identifier, DownloadStatus.FAILED)
+                    _uiState.value = current.copy(
+                        downloadStatus = DownloadStatus.FAILED,
+                        downloadError = error.message ?: "Failed to start download"
+                    )
+                }
             )
         }
     }
