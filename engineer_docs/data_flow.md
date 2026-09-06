@@ -53,7 +53,7 @@ flowchart LR
 |-------|---------|-----------------|
 | `SelectQuality(stream)` | `selectQuality(stream)` | `Success(selectedStream=stream)` |
 | `StreamVideo` | `streamVideo()` | Sets `navigateToPlayer` StateFlow → consumed by `LaunchedEffect` |
-| `DownloadVideo` | `initiateDownload()` | Inserts `DownloadedVideoEntity(PENDING)` → `Success(downloadStatus=PENDING)` |
+| `DownloadVideo` | `initiateDownload()` | Inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
 | `ToggleDescription` | `toggleDescription()` | `Success(isDescriptionExpanded=!current)` |
 | `Retry` | `loadDetail()` | Any → `Loading` → network → `Success` or `Error` |
 
