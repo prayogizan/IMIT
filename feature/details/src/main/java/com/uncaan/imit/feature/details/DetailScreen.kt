@@ -317,19 +317,41 @@ private fun DetailSuccessContent(
                     Text("Watch Video")
                 }
 
-                if (state.downloadStatus == null || state.downloadStatus == DownloadStatus.FAILED) {
-                    OutlinedButton(
-                        onClick = { onEvent(DetailUiEvent.DownloadVideo) },
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(spacing.extraSmall))
-                        Text("Download")
+                when (state.downloadStatus) {
+                    null, DownloadStatus.FAILED -> {
+                        OutlinedButton(
+                            onClick = { onEvent(DetailUiEvent.DownloadVideo) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text("Download")
+                        }
+                    }
+
+                    DownloadStatus.COMPLETED -> {
+                        Button(
+                            onClick = { onEvent(DetailUiEvent.StreamVideo) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text("Play Downloaded Video")
+                        }
+                    }
+
+                    else -> {
+                        // In-progress downloads (PENDING, DOWNLOADING, PAUSED) rendered by DownloadProgressIndicator below
                     }
                 }
             }
@@ -603,6 +625,45 @@ private fun DetailScreenSuccessPreview() {
                 detail = sampleDetail,
                 selectedStream = sampleStreams.first(),
                 downloadStatus = null
+            ),
+            onEvent = {},
+            onBackClick = {}
+        )
+    }
+}
+
+@Preview(name = "Light Mode - Completed", showBackground = true)
+@Preview(name = "Dark Mode - Completed", showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun DetailScreenCompletedPreview() {
+    val sampleStreams = listOf(
+        PlayableStream(
+            fileName = "lecture01_720p.mp4",
+            format = "mp4",
+            sizeBytes = 250 * 1024 * 1024L,
+            durationSeconds = 3000.0,
+            height = 720,
+            width = 1280,
+            streamUrl = "https://archive.org/download/mit-ocw-lec01/lec01_720p.mp4"
+        )
+    )
+
+    val sampleDetail = VideoDetail(
+        identifier = "mit-ocw-6.0001-lec01",
+        title = "Lecture 1: What is Computation? - Introduction to Computer Science",
+        description = "This lecture covers the foundational concepts of computer programming, algorithms, and computational problem solving using Python 3.",
+        creator = "Prof. Eric Grimson",
+        streams = sampleStreams,
+        thumbnailUrl = "https://archive.org/services/img/mit-ocw-6.0001"
+    )
+
+    MitOcwTheme {
+        DetailScreenContent(
+            uiState = DetailUiState.Success(
+                detail = sampleDetail,
+                selectedStream = sampleStreams.first(),
+                downloadStatus = DownloadStatus.COMPLETED,
+                downloadProgress = 100
             ),
             onEvent = {},
             onBackClick = {}
