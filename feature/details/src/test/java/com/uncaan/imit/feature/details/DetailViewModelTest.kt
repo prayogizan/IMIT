@@ -8,6 +8,10 @@ import com.uncaan.imit.core.model.DownloadStatus
 import com.uncaan.imit.core.model.PlayableStream
 import com.uncaan.imit.core.model.VideoDetail
 import com.uncaan.imit.core.download.DownloadManagerHelper
+import androidx.work.Data
+import androidx.work.WorkInfo
+import com.uncaan.imit.core.download.VideoDownloadWorker
+import kotlinx.coroutines.flow.MutableSharedFlow
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -38,6 +42,7 @@ class DetailViewModelTest {
     private val videoRepository: VideoRepository = mockk()
     private val downloadedVideoDao: DownloadedVideoDao = mockk(relaxed = true)
     private val downloadManagerHelper: DownloadManagerHelper = mockk(relaxed = true)
+    private val workInfoFlow = MutableSharedFlow<WorkInfo?>(replay = 1)
 
     private val sampleStreamHd = PlayableStream(
         fileName = "lecture01_720p.mp4",
@@ -74,6 +79,27 @@ class DetailViewModelTest {
         every {
             downloadManagerHelper.enqueueDownload(any(), any(), any(), any())
         } returns Result.success(UUID.randomUUID())
+        every {
+            downloadManagerHelper.getWorkInfoFlow(any())
+        } returns workInfoFlow
+    }
+
+    private fun createMockWorkInfo(
+        state: WorkInfo.State,
+        progress: Int = 0,
+        errorMessage: String? = null
+    ): WorkInfo {
+        val progressData = mockk<Data>()
+        every { progressData.getInt(VideoDownloadWorker.KEY_PROGRESS, any()) } returns progress
+
+        val outputData = mockk<Data>()
+        every { outputData.getString(VideoDownloadWorker.KEY_ERROR) } returns errorMessage
+
+        val workInfo = mockk<WorkInfo>()
+        every { workInfo.state } returns state
+        every { workInfo.progress } returns progressData
+        every { workInfo.outputData } returns outputData
+        return workInfo
     }
 
     @After
@@ -342,5 +368,143 @@ class DetailViewModelTest {
         viewModel.navigateToPlayer.test {
             assertNull(awaitItem())
         }
+    }
+
+    @Test
+    fun `observeDownloadProgress updates uiState to DOWNLOADING with progress`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        val runningInfo = createMockWorkInfo(
+            state = WorkInfo.State.RUNNING,
+            progress = 45
+        )
+        workInfoFlow.emit(runningInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.DOWNLOADING, state.downloadStatus)
+            assertEquals(45, state.downloadProgress)
+            assertNull(state.downloadError)
+        }
+    }
+
+    @Test
+    fun `observeDownloadProgress updates uiState to COMPLETED with 100 percent progress when worker succeeds`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        val successInfo = createMockWorkInfo(
+            state = WorkInfo.State.SUCCEEDED,
+            progress = 100
+        )
+        workInfoFlow.emit(successInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.COMPLETED, state.downloadStatus)
+            assertEquals(100, state.downloadProgress)
+            assertNull(state.downloadError)
+        }
+    }
+
+    @Test
+    fun `observeDownloadProgress updates uiState to FAILED with error message when worker fails`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        val failedInfo = createMockWorkInfo(
+            state = WorkInfo.State.FAILED,
+            progress = 20,
+            errorMessage = "Insufficient storage space (<500MB)"
+        )
+        workInfoFlow.emit(failedInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+            assertEquals(20, state.downloadProgress)
+            assertEquals("Insufficient storage space (<500MB)", state.downloadError)
+        }
+    }
+
+    @Test
+    fun `loadDetail starts observing progress when active download already exists in database`() = runTest(testDispatcher) {
+        val activeDownload = DownloadedVideoEntity(
+            identifier = "mit-ocw-6.0001-lec01",
+            title = sampleDetail.title,
+            description = sampleDetail.description,
+            fileName = sampleStreamHd.fileName,
+            downloadUrl = sampleStreamHd.streamUrl,
+            localFilePath = null,
+            fileSizeBytes = sampleStreamHd.sizeBytes,
+            progress = 30,
+            status = DownloadStatus.DOWNLOADING
+        )
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns activeDownload
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        verify { downloadManagerHelper.getWorkInfoFlow("mit-ocw-6.0001-lec01") }
+
+        val runningInfo = createMockWorkInfo(
+            state = WorkInfo.State.RUNNING,
+            progress = 75
+        )
+        workInfoFlow.emit(runningInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.DOWNLOADING, state.downloadStatus)
+            assertEquals(75, state.downloadProgress)
+        }
+    }
+
+    @Test
+    fun `initiateDownload starts observing progress immediately on enqueue success`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        verify { downloadManagerHelper.getWorkInfoFlow("mit-ocw-6.0001-lec01") }
     }
 }
