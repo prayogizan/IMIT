@@ -53,9 +53,25 @@ flowchart LR
 |-------|---------|-----------------|
 | `SelectQuality(stream)` | `selectQuality(stream)` | `Success(selectedStream=stream)` |
 | `StreamVideo` | `streamVideo()` | Sets `navigateToPlayer` StateFlow → consumed by `LaunchedEffect` |
-| `DownloadVideo` | `initiateDownload()` | Inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
+| `DownloadVideo` | `initiateDownload()` | Inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
 | `ToggleDescription` | `toggleDescription()` | `Success(isDescriptionExpanded=!current)` |
-| `Retry` | `loadDetail()` | Any → `Loading` → network → `Success` or `Error` |
+| `Retry` | `loadDetail()` | Any → `Loading` → network → checks DB for active download (`DOWNLOADING`/`PENDING`) to trigger `observeDownloadProgress(identifier)` → `Success` or `Error` |
+
+### Detail WorkManager Progress Observation Flow
+
+```mermaid
+flowchart LR
+    A[DownloadManagerHelper.getWorkInfoFlow] --> B[observeDownloadProgress]
+    B --> C{WorkInfo.State}
+    C -->|ENQUEUED / BLOCKED| D[PENDING]
+    C -->|RUNNING| E["DOWNLOADING (0..100%)"]
+    C -->|SUCCEEDED| F["COMPLETED (100%)"]
+    C -->|FAILED / CANCELLED| G["FAILED (downloadError)"]
+    D --> H[_uiState.value = Success]
+    E --> H
+    F --> H
+    G --> H
+```
 
 ## Repository Data Flow
 
