@@ -52,6 +52,9 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
 
+    // WorkManager
+    implementation(libs.work.runtime)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
