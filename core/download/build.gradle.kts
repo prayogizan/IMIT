@@ -25,8 +25,8 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.androidx.workmanager)
 
-    // WorkManager
-    implementation(libs.work.runtime)
+    // WorkManager (exposed via api because getWorkInfoFlow exposes WorkInfo in public ABI)
+    api(libs.work.runtime)
 
     // OkHttp (for download streams)
     implementation(libs.okhttp)

@@ -2,21 +2,26 @@ package com.uncaan.imit.feature.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
 import com.uncaan.imit.core.data.repository.VideoRepository
 import com.uncaan.imit.core.database.dao.DownloadedVideoDao
 import com.uncaan.imit.core.database.entity.DownloadedVideoEntity
+import com.uncaan.imit.core.download.DownloadManagerHelper
+import com.uncaan.imit.core.download.VideoDownloadWorker
 import com.uncaan.imit.core.model.DownloadStatus
 import com.uncaan.imit.core.model.PlayableStream
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
-import com.uncaan.imit.core.download.DownloadManagerHelper
-
 /**
- * ViewModel for the Detail screen managing lecture metadata, quality selection, video streaming, and download triggers.
+ * ViewModel for the Detail screen managing lecture metadata, quality selection, video streaming,
+ * download triggers, and real-time WorkManager progress observation.
  *
  * Exposes UI states via [uiState] and navigation events via [navigateToPlayer].
  * Processes user interactions through the single [onEvent] dispatch method.
@@ -40,6 +45,8 @@ class DetailViewModel(
 
     private val _navigateToPlayer = MutableStateFlow<String?>(null)
     val navigateToPlayer: StateFlow<String?> = _navigateToPlayer.asStateFlow()
+
+    private var downloadProgressJob: Job? = null
 
     init {
         loadDetail()
@@ -71,6 +78,9 @@ class DetailViewModel(
                         downloadStatus = downloaded?.status,
                         downloadProgress = downloaded?.progress ?: 0
                     )
+                    if (downloaded?.status == DownloadStatus.DOWNLOADING || downloaded?.status == DownloadStatus.PENDING) {
+                        observeDownloadProgress(identifier)
+                    }
                 },
                 onFailure = { error ->
                     _uiState.value = DetailUiState.Error(
@@ -133,6 +143,7 @@ class DetailViewModel(
                         downloadProgress = 0,
                         downloadError = null
                     )
+                    observeDownloadProgress(identifier)
                 },
                 onFailure = { error ->
                     downloadedVideoDao.updateStatus(identifier, DownloadStatus.FAILED)
@@ -143,6 +154,46 @@ class DetailViewModel(
                 }
             )
         }
+    }
+
+    /**
+     * Observes real-time WorkManager download progress and state transitions.
+     *
+     * Cancels any previously running observation job before collecting [DownloadManagerHelper.getWorkInfoFlow].
+     * Continuously maps [WorkInfo.State] to [DownloadStatus] and updates [DetailUiState.Success.downloadProgress].
+     *
+     * @param identifier Unique Archive.org identifier for the video being downloaded.
+     */
+    private fun observeDownloadProgress(identifier: String) {
+        downloadProgressJob?.cancel()
+        downloadProgressJob = downloadManagerHelper.getWorkInfoFlow(identifier)
+            .onEach { workInfo ->
+                val info = workInfo ?: return@onEach
+                val current = _uiState.value as? DetailUiState.Success ?: return@onEach
+
+                val progress = info.progress.getInt(VideoDownloadWorker.KEY_PROGRESS, current.downloadProgress)
+                val status = when (info.state) {
+                    WorkInfo.State.ENQUEUED -> DownloadStatus.PENDING
+                    WorkInfo.State.RUNNING -> DownloadStatus.DOWNLOADING
+                    WorkInfo.State.SUCCEEDED -> DownloadStatus.COMPLETED
+                    WorkInfo.State.FAILED -> DownloadStatus.FAILED
+                    WorkInfo.State.CANCELLED -> DownloadStatus.FAILED
+                    WorkInfo.State.BLOCKED -> DownloadStatus.PENDING
+                }
+
+                val errorMessage = if (status == DownloadStatus.FAILED) {
+                    info.outputData.getString(VideoDownloadWorker.KEY_ERROR) ?: current.downloadError
+                } else {
+                    null
+                }
+
+                _uiState.value = current.copy(
+                    downloadStatus = status,
+                    downloadProgress = if (status == DownloadStatus.COMPLETED) 100 else progress,
+                    downloadError = errorMessage
+                )
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun toggleDescription() {
