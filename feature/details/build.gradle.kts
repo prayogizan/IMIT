@@ -39,6 +39,10 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.compose.tooling.preview)
+    implementation(libs.activity.compose)
+
+    // AndroidX Core
+    implementation(libs.core.ktx)
 
     // Coil (Image loading)
     implementation(libs.coil.compose)

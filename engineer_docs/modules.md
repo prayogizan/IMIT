@@ -273,7 +273,7 @@ Detail screen with video metadata, quality selection, streaming, and download in
 - ViewModel receives `identifier` as constructor parameter (Koin `parametersOf`)
 - Player navigation via `navigateToPlayer: StateFlow<String?>` + `onPlayerNavigated()` reset
 - Quality selection: `FilterChip` with `FlowRow`, auto-selects `bestStream` (highest resolution)
-- Download: inserts `DownloadedVideoEntity` with `PENDING` status, schedules background work via `DownloadManagerHelper`, and reactively observes `getWorkInfoFlow` progress (0..100%) and state transitions
+- Download: prompts runtime permission for `POST_NOTIFICATIONS` on Android 13+ (API 33+) before scheduling background work; inserts `DownloadedVideoEntity` with `PENDING` status, schedules background work via `DownloadManagerHelper`, and reactively observes `getWorkInfoFlow` progress (0..100%) and state transitions. Downloads proceed in background even if notification permission is denied.
 - Plays local file if download `COMPLETED`, otherwise streams remote URL; download button transforms to "Play Downloaded Video" upon completion
 - Description: expandable with `animateContentSize()`, 4-line clamp
 
