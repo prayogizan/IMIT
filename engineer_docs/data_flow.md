@@ -53,7 +53,7 @@ flowchart LR
 |-------|---------|-----------------|
 | `SelectQuality(stream)` | `selectQuality(stream)` | `Success(selectedStream=stream)` |
 | `StreamVideo` | `streamVideo()` | Sets `navigateToPlayer` StateFlow → consumed by `LaunchedEffect` |
-| `DownloadVideo` | `initiateDownload()` | Inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
+| `DownloadVideo` | `initiateDownload()` | Checks runtime `POST_NOTIFICATIONS` permission on Android 13+ (API 33+), then inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
 | `ToggleDescription` | `toggleDescription()` | `Success(isDescriptionExpanded=!current)` |
 | `Retry` | `loadDetail()` | Any → `Loading` → network → checks DB for active download (`DOWNLOADING`/`PENDING`) to trigger `observeDownloadProgress(identifier)` → `Success` or `Error` |
 
