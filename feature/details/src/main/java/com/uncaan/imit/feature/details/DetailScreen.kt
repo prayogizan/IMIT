@@ -1,6 +1,11 @@
 package com.uncaan.imit.feature.details
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,10 +63,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil3.compose.SubcomposeAsyncImage
 import com.uncaan.imit.core.designsystem.component.DownloadProgressIndicator
 import com.uncaan.imit.core.designsystem.component.ErrorMessage
@@ -74,6 +81,18 @@ import com.uncaan.imit.core.model.VideoDetail
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
+/**
+ * Main screen composable for video details.
+ *
+ * Displays video metadata, playable stream selection, download controls with Android 13+ runtime
+ * notification permission handling, expandable description, and real-time download progress.
+ *
+ * @param identifier Unique Archive.org identifier for the lecture.
+ * @param onBackClick Callback invoked when top app bar back icon is clicked.
+ * @param onPlayVideo Callback invoked when video playback is triggered with the video stream URL or local file path.
+ * @param modifier Optional [Modifier] applied to the root layout.
+ * @param viewModel [DetailViewModel] instance injected via Koin with [identifier] parameter.
+ */
 @Composable
 fun DetailScreen(
     identifier: String,
@@ -82,8 +101,34 @@ fun DetailScreen(
     modifier: Modifier = Modifier,
     viewModel: DetailViewModel = koinViewModel(parameters = { parametersOf(identifier) })
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val navigateToPlayer by viewModel.navigateToPlayer.collectAsState()
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // Proceed with download regardless of permission result
+        // (Worker runs in background; notifications are helpful telemetry, not blocker)
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+    }
+
+    val onDownloadRequested: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (hasPermission) {
+                viewModel.onEvent(DetailUiEvent.DownloadVideo)
+            } else {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        } else {
+            viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        }
+    }
 
     LaunchedEffect(navigateToPlayer) {
         navigateToPlayer?.let { videoUrl ->
@@ -96,6 +141,7 @@ fun DetailScreen(
         uiState = uiState,
         onEvent = viewModel::onEvent,
         onBackClick = onBackClick,
+        onDownloadClick = onDownloadRequested,
         modifier = modifier
     )
 }
@@ -106,7 +152,8 @@ internal fun DetailScreenContent(
     uiState: DetailUiState,
     onEvent: (DetailUiEvent) -> Unit,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDownloadClick: () -> Unit = { onEvent(DetailUiEvent.DownloadVideo) }
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -155,7 +202,8 @@ internal fun DetailScreenContent(
                 is DetailUiState.Success -> {
                     DetailSuccessContent(
                         state = uiState,
-                        onEvent = onEvent
+                        onEvent = onEvent,
+                        onDownloadClick = onDownloadClick
                     )
                 }
             }
@@ -168,6 +216,7 @@ internal fun DetailScreenContent(
 private fun DetailSuccessContent(
     state: DetailUiState.Success,
     onEvent: (DetailUiEvent) -> Unit,
+    onDownloadClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val spacing = MaterialTheme.spacing
@@ -320,7 +369,7 @@ private fun DetailSuccessContent(
                 when (state.downloadStatus) {
                     null, DownloadStatus.FAILED -> {
                         OutlinedButton(
-                            onClick = { onEvent(DetailUiEvent.DownloadVideo) },
+                            onClick = onDownloadClick,
                             modifier = Modifier.weight(1f),
                             shape = MaterialTheme.shapes.medium
                         ) {
