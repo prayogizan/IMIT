@@ -225,7 +225,8 @@ WorkManager background download engine with Koin worker injection, foreground no
 
 - **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
 - **Storage Space Guard:** Downloads abort and fail early if the device has less than 500MB free disk space.
-- **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
+- **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
+- **Completion Notification:** Triggers a standalone completion notification upon stream finish using the unique item notification ID.
 - **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; deletes partial files and updates status to `PAUSED`. Propagates `CancellationException` without swallowing.
 
 ---
