@@ -18,6 +18,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.abs
 
 /**
  * Background worker responsible for streaming video files from remote URLs to local storage.
@@ -62,8 +63,14 @@ class VideoDownloadWorker(
         /** Notification channel ID for video downloads. */
         const val CHANNEL_ID = "video_downloads"
 
-        /** Notification ID for foreground download service. */
-        const val NOTIFICATION_ID = 1001
+        /** Default fallback notification ID when identifier is null. */
+        const val DEFAULT_NOTIFICATION_ID = 1001
+
+        /**
+         * Notification ID constant maintained for backward compatibility.
+         * Equivalent to [DEFAULT_NOTIFICATION_ID].
+         */
+        const val NOTIFICATION_ID = DEFAULT_NOTIFICATION_ID
 
         /** Minimum required disk space in bytes (500 MB). */
         const val MIN_STORAGE_BYTES = 500L * 1024L * 1024L
@@ -73,7 +80,27 @@ class VideoDownloadWorker(
 
         /** Stream read buffer size in bytes (8 KB). */
         private const val BUFFER_SIZE = 8 * 1024
+
+        /**
+         * Calculates a deterministic unique positive notification ID from an Archive.org [identifier].
+         *
+         * Maps the hash code into the range `[1000..100999]` using `abs(identifier.hashCode().toLong()) % 100_000 + 1000`.
+         * Returns [DEFAULT_NOTIFICATION_ID] if [identifier] is null.
+         *
+         * @param identifier Unique Archive.org item identifier.
+         * @return Deterministic positive integer notification ID.
+         */
+        fun getNotificationId(identifier: String?): Int {
+            if (identifier == null) return DEFAULT_NOTIFICATION_ID
+            return (abs(identifier.hashCode().toLong()) % 100_000L + 1000L).toInt()
+        }
     }
+
+    /**
+     * Unique positive notification ID derived deterministically from the item [KEY_IDENTIFIER].
+     */
+    internal val notificationId: Int
+        get() = getNotificationId(inputData.getString(KEY_IDENTIFIER))
 
     override suspend fun doWork(): Result {
         val identifier = inputData.getString(KEY_IDENTIFIER) ?: return Result.failure()
@@ -151,6 +178,7 @@ class VideoDownloadWorker(
                 status = DownloadStatus.COMPLETED,
                 downloadedAt = System.currentTimeMillis()
             )
+            showCompletionNotification(title)
             Result.success(workDataOf(KEY_PROGRESS to 100))
         } catch (e: CancellationException) {
             if (targetFile.exists()) {
@@ -216,12 +244,28 @@ class VideoDownloadWorker(
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
-                NOTIFICATION_ID,
+                notificationId,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } else {
-            ForegroundInfo(NOTIFICATION_ID, notification)
+            ForegroundInfo(notificationId, notification)
         }
+    }
+
+    /**
+     * Displays a completion notification when video download finishes successfully.
+     *
+     * @param title Title displayed on the completion notification.
+     */
+    private fun showCompletionNotification(title: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Download Complete")
+            .setContentText(title)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setAutoCancel(true)
+            .build()
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.notify(notificationId, notification)
     }
 }
