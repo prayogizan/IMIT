@@ -507,4 +507,104 @@ class DetailViewModelTest {
 
         verify { downloadManagerHelper.getWorkInfoFlow("mit-ocw-6.0001-lec01") }
     }
+
+    @Test
+    fun `dismissDownloadError clears downloadError from Success state while preserving details`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        every {
+            downloadManagerHelper.enqueueDownload(
+                identifier = "mit-ocw-6.0001-lec01",
+                title = sampleDetail.title,
+                downloadUrl = sampleStreamHd.streamUrl,
+                fileName = sampleStreamHd.fileName
+            )
+        } returns Result.failure(IllegalStateException("Insufficient storage space (< 500MB free)"))
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals("Insufficient storage space (< 500MB free)", state.downloadError)
+            assertEquals(sampleDetail, state.detail)
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+        }
+
+        viewModel.onEvent(DetailUiEvent.DismissDownloadError)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertNull(state.downloadError)
+            assertEquals(sampleDetail, state.detail)
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+            assertEquals(sampleStreamHd, state.selectedStream)
+        }
+    }
+
+    @Test
+    fun `dismissDownloadError is no-op when state is Error`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.failure(IOException("Network error"))
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            assertTrue(awaitItem() is DetailUiState.Error)
+        }
+
+        viewModel.onEvent(DetailUiEvent.DismissDownloadError)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Error
+            assertEquals("Network error", state.message)
+        }
+    }
+
+    @Test
+    fun `dismissDownloadError clears downloadError originated from worker failure`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        val failedInfo = createMockWorkInfo(
+            state = WorkInfo.State.FAILED,
+            progress = 30,
+            errorMessage = "Download worker failed: connection reset"
+        )
+        workInfoFlow.emit(failedInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals("Download worker failed: connection reset", state.downloadError)
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+        }
+
+        viewModel.onEvent(DetailUiEvent.DismissDownloadError)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertNull(state.downloadError)
+            assertEquals(DownloadStatus.FAILED, state.downloadStatus)
+            assertEquals(sampleDetail, state.detail)
+        }
+    }
 }
