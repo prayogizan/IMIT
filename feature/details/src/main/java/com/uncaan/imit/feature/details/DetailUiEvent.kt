@@ -8,4 +8,7 @@ sealed interface DetailUiEvent {
     data object DownloadVideo : DetailUiEvent
     data object ToggleDescription : DetailUiEvent
     data object Retry : DetailUiEvent
+
+    /** Dismisses the active download error message without resetting lecture details. */
+    data object DismissDownloadError : DetailUiEvent
 }

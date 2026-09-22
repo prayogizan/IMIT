@@ -59,6 +59,7 @@ class DetailViewModel(
             is DetailUiEvent.DownloadVideo -> initiateDownload()
             is DetailUiEvent.ToggleDescription -> toggleDescription()
             is DetailUiEvent.Retry -> loadDetail()
+            is DetailUiEvent.DismissDownloadError -> dismissDownloadError()
         }
     }
 
@@ -199,5 +200,10 @@ class DetailViewModel(
     private fun toggleDescription() {
         val current = _uiState.value as? DetailUiState.Success ?: return
         _uiState.value = current.copy(isDescriptionExpanded = !current.isDescriptionExpanded)
+    }
+
+    private fun dismissDownloadError() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        _uiState.value = current.copy(downloadError = null)
     }
 }
