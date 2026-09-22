@@ -48,6 +48,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +61,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -155,8 +160,25 @@ internal fun DetailScreenContent(
     modifier: Modifier = Modifier,
     onDownloadClick: () -> Unit = { onEvent(DetailUiEvent.DownloadVideo) }
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val downloadError = (uiState as? DetailUiState.Success)?.downloadError
+    LaunchedEffect(downloadError) {
+        if (downloadError != null) {
+            val result = snackbarHostState.showSnackbar(
+                message = downloadError,
+                actionLabel = "Dismiss",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed || result == SnackbarResult.Dismissed) {
+                onEvent(DetailUiEvent.DismissDownloadError)
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -403,16 +425,6 @@ private fun DetailSuccessContent(
                         // In-progress downloads (PENDING, DOWNLOADING, PAUSED) rendered by DownloadProgressIndicator below
                     }
                 }
-            }
-
-            // Download error message if download failed
-            if (state.downloadError != null && state.downloadStatus == DownloadStatus.FAILED) {
-                Text(
-                    text = state.downloadError,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(horizontal = spacing.extraSmall)
-                )
             }
 
             // Download progress indicator if downloading or pending
