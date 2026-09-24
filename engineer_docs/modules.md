@@ -217,17 +217,19 @@ WorkManager background download engine with Koin worker injection, foreground no
 
 | File | Purpose |
 |------|---------|
-| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, cooperative stop cleanup, and `CancellationException` rethrow rule. |
-| `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), unique work tagging, cancellation, disk storage checks, and reactive `WorkInfo` Flow observation. |
+| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, and `CancellationException` rethrow rule. |
+| `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), resume (`ExistingWorkPolicy.REPLACE`), unique work tagging, pause, cancellation with `.tmp` and finalized file cleanup, disk storage checks, and reactive `WorkInfo` Flow observation. |
 | `di/DownloadModule.kt` | Koin module providing `DownloadManagerHelper` singleton and `VideoDownloadWorker` via Koin's `worker { }` DSL. |
 
 ### Key Behaviors
 
 - **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
 - **Storage Space Guard:** Downloads abort and fail early if the device has less than 500MB free disk space.
+- **HTTP Range Resumption:** Writes stream into a temporary file (`.tmp`). When resuming, worker checks existing partial byte length and issues `Range: bytes=<existingBytes>-`. If server returns `206 Partial Content`, appends to `.tmp`; if `200 OK`, restarts from byte 0. Renames `.tmp` to final destination upon completion.
 - **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
 - **Completion Notification:** Triggers a standalone completion notification upon stream finish using the unique item notification ID.
-- **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; deletes partial files and updates status to `PAUSED`. Propagates `CancellationException` without swallowing.
+- **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; preserves partial `.tmp` file and updates Room status to `PAUSED`. Propagates `CancellationException` without swallowing.
+- **Download Lifecycle APIs:** Exposes `enqueueDownload()` (initial enqueue with `KEEP`), `resumeDownload()` (resumption with `REPLACE`), `pauseDownload()` (cancels unique work triggering cooperative pause in worker), and `cancelDownload()` (cancels work and deletes both `.tmp` and final files).
 
 ---
 
@@ -263,9 +265,9 @@ Detail screen with video metadata, quality selection, streaming, and download in
 | File | Responsibility |
 |------|---------------|
 | `DetailUiState.kt` | `Loading`, `Success` (detail, selectedStream, downloadStatus, progress, description expanded), `Error` |
-| `DetailUiEvent.kt` | `SelectQuality`, `StreamVideo`, `DownloadVideo`, `ToggleDescription`, `Retry` |
-| `DetailViewModel.kt` | Loads video detail, manages quality selection, initiates downloads, navigates to player |
-| `DetailScreen.kt` | Thumbnail with scrim overlay, play button, quality chips (`FlowRow` + `FilterChip`), download progress, expandable description |
+| `DetailUiEvent.kt` | `SelectQuality`, `StreamVideo`, `DownloadVideo`, `ToggleDescription`, `Retry`, `DismissDownloadError`, `PauseDownload`, `ResumeDownload`, `RetryDownload`, `CancelDownload` |
+| `DetailViewModel.kt` | Loads video detail, manages quality selection, initiates downloads, handles pause/resume/retry/cancel, navigates to player |
+| `DetailScreen.kt` | Thumbnail with scrim overlay, play button, quality chips (`FlowRow` + `FilterChip`), download lifecycle controls (Download/Pause/Resume/Retry/Play, Cancel), download progress card, expandable description |
 | `di/DetailsModule.kt` | ViewModel module with `parametersOf(identifier)` for assisted injection |
 | `di/DetailsViewModelModule.kt` | Additional ViewModel bindings |
 
@@ -274,7 +276,7 @@ Detail screen with video metadata, quality selection, streaming, and download in
 - ViewModel receives `identifier` as constructor parameter (Koin `parametersOf`)
 - Player navigation via `navigateToPlayer: StateFlow<String?>` + `onPlayerNavigated()` reset
 - Quality selection: `FilterChip` with `FlowRow`, auto-selects `bestStream` (highest resolution)
-- Download: prompts runtime permission for `POST_NOTIFICATIONS` on Android 13+ (API 33+) before scheduling background work; inserts `DownloadedVideoEntity` with `PENDING` status, schedules background work via `DownloadManagerHelper`, and reactively observes `getWorkInfoFlow` progress (0..100%) and state transitions. Downloads proceed in background even if notification permission is denied.
+- Download Controls: prompts runtime permission for `POST_NOTIFICATIONS` on Android 13+ (API 33+) before scheduling background work; inserts `DownloadedVideoEntity` with `PENDING` status, schedules background work via `DownloadManagerHelper`, and reactively observes `getWorkInfoFlow` progress (0..100%) and state transitions. Maps `CANCELLED` WorkInfo state to `DownloadStatus.PAUSED`. Provides contextual UI action buttons (Download, Pause, Resume, Retry, Play) and a Cancel button in the progress card.
 - Plays local file if download `COMPLETED`, otherwise streams remote URL; download button transforms to "Play Downloaded Video" upon completion
 - Description: expandable with `animateContentSize()`, 4-line clamp
 
@@ -290,15 +292,16 @@ Manages offline video library with real-time Room observation, device storage te
 
 | Component | Responsibility |
 |-----------|----------------|
-| `DownloadsScreen.kt` | Material 3 UI displaying storage usage card, download list, empty state, and delete confirmation dialog |
-| `DownloadsViewModel.kt` | Observes downloaded items via `DownloadedVideoDao`, manages disk deletion via `DownloadManagerHelper`, computes storage telemetry |
+| `DownloadsScreen.kt` | Material 3 UI displaying storage usage card, download list, empty state, per-item lifecycle action buttons (Pause, Resume, Retry, Play, Cancel), and delete confirmation dialog |
+| `DownloadsViewModel.kt` | Observes downloaded items via `DownloadedVideoDao`, manages lifecycle actions (pause, resume, retry, cancel), manages disk deletion via `DownloadManagerHelper`, computes storage telemetry |
 | `DownloadsUiState.kt` | Sealed interface with `Loading`, `Empty`, `Success(downloads, totalStorageUsedBytes, availableStorageMb)`, `Error(message)` |
-| `DownloadsUiEvent.kt` | Sealed interface for user interactions (`DeleteDownload`, `ConfirmDelete`, `DismissDeleteDialog`, `PlayVideo`) |
+| `DownloadsUiEvent.kt` | Sealed interface for user interactions (`DeleteDownload`, `ConfirmDelete`, `DismissDeleteDialog`, `PlayVideo`, `PauseDownload`, `ResumeDownload`, `RetryDownload`, `CancelDownload`) |
 | `DownloadsModule.kt` | Koin DI module declaring `downloadsViewModelModule` with `viewModelOf(::DownloadsViewModel)` |
 
 ### Screen Capabilities
 
 - Storage telemetry banner displaying formatted storage used and free disk space with visual progress indicator.
 - Reactive `Flow` updates from `downloaded_videos` table via `DownloadedVideoDao.getAllDownloads()`.
+- Granular per-item lifecycle actions: Pause active/pending downloads, Resume paused downloads with HTTP Range byte resumption, Retry failed downloads, and Cancel downloads with `.tmp` and database cleanup.
 - Offline playback routing through `onPlayVideo` callback passing local file path or stream fallback.
 - Safe two-step deletion confirmation dialog triggering local file unlinking, database row deletion, and WorkManager task cancellation.
