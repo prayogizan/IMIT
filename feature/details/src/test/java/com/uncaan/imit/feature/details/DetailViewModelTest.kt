@@ -607,4 +607,141 @@ class DetailViewModelTest {
             assertEquals(sampleDetail, state.detail)
         }
     }
+
+    @Test
+    fun `PauseDownload event invokes helper pauseDownload and updates downloadStatus to PAUSED`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        every { downloadManagerHelper.pauseDownload(any()) } returns Unit
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.PauseDownload)
+        advanceUntilIdle()
+
+        verify { downloadManagerHelper.pauseDownload("mit-ocw-6.0001-lec01") }
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.PAUSED, state.downloadStatus)
+        }
+    }
+
+    @Test
+    fun `ResumeDownload event invokes helper resumeDownload and observes progress`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        every {
+            downloadManagerHelper.resumeDownload(any(), any(), any(), any())
+        } returns Result.success(UUID.randomUUID())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.ResumeDownload)
+        advanceUntilIdle()
+
+        verify {
+            downloadManagerHelper.resumeDownload(
+                identifier = "mit-ocw-6.0001-lec01",
+                title = sampleDetail.title,
+                downloadUrl = sampleStreamHd.streamUrl,
+                fileName = sampleStreamHd.fileName
+            )
+        }
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.PENDING, state.downloadStatus)
+        }
+    }
+
+    @Test
+    fun `RetryDownload event invokes helper resumeDownload`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        every {
+            downloadManagerHelper.resumeDownload(any(), any(), any(), any())
+        } returns Result.success(UUID.randomUUID())
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.RetryDownload)
+        advanceUntilIdle()
+
+        verify {
+            downloadManagerHelper.resumeDownload(
+                identifier = "mit-ocw-6.0001-lec01",
+                title = sampleDetail.title,
+                downloadUrl = sampleStreamHd.streamUrl,
+                fileName = sampleStreamHd.fileName
+            )
+        }
+    }
+
+    @Test
+    fun `CancelDownload event cancels work, deletes DB record, and resets download status`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+        coEvery { downloadedVideoDao.deleteById(any()) } returns 1
+        every { downloadManagerHelper.cancelDownload(any(), any()) } returns Unit
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.CancelDownload)
+        advanceUntilIdle()
+
+        verify { downloadManagerHelper.cancelDownload("mit-ocw-6.0001-lec01", sampleStreamHd.fileName) }
+        coVerify { downloadedVideoDao.deleteById("mit-ocw-6.0001-lec01") }
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertNull(state.downloadStatus)
+            assertEquals(0, state.downloadProgress)
+            assertNull(state.downloadError)
+        }
+    }
+
+    @Test
+    fun `WorkInfo CANCELLED state maps to PAUSED DownloadStatus`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.DownloadVideo)
+        advanceUntilIdle()
+
+        val cancelledInfo = createMockWorkInfo(
+            state = WorkInfo.State.CANCELLED,
+            progress = 45
+        )
+        workInfoFlow.emit(cancelledInfo)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertEquals(DownloadStatus.PAUSED, state.downloadStatus)
+            assertEquals(45, state.downloadProgress)
+        }
+    }
 }

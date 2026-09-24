@@ -17,9 +17,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -29,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -211,6 +215,32 @@ private fun DownloadsContent(
                     },
                     onDelete = {
                         onEvent(DownloadsUiEvent.DeleteDownload(task.identifier, task.localFilePath))
+                    },
+                    onPause = {
+                        onEvent(DownloadsUiEvent.PauseDownload(task.identifier))
+                    },
+                    onResume = {
+                        onEvent(
+                            DownloadsUiEvent.ResumeDownload(
+                                identifier = task.identifier,
+                                title = task.title,
+                                downloadUrl = task.downloadUrl,
+                                fileName = task.fileName
+                            )
+                        )
+                    },
+                    onRetry = {
+                        onEvent(
+                            DownloadsUiEvent.RetryDownload(
+                                identifier = task.identifier,
+                                title = task.title,
+                                downloadUrl = task.downloadUrl,
+                                fileName = task.fileName
+                            )
+                        )
+                    },
+                    onCancel = {
+                        onEvent(DownloadsUiEvent.CancelDownload(task.identifier, task.fileName))
                     }
                 )
             }
@@ -278,6 +308,10 @@ private fun DownloadItemCard(
     task: DownloadTask,
     onPlay: () -> Unit,
     onDelete: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val spacing = MaterialTheme.spacing
@@ -327,12 +361,20 @@ private fun DownloadItemCard(
                 }
 
                 IconButton(
-                    onClick = onDelete,
+                    onClick = if (task.status == DownloadStatus.COMPLETED) onDelete else onCancel,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete download",
+                        imageVector = if (task.status == DownloadStatus.COMPLETED) {
+                            Icons.Default.Delete
+                        } else {
+                            Icons.Default.Close
+                        },
+                        contentDescription = if (task.status == DownloadStatus.COMPLETED) {
+                            "Delete download"
+                        } else {
+                            "Cancel download"
+                        },
                         tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                         modifier = Modifier.size(20.dp)
                     )
@@ -345,22 +387,70 @@ private fun DownloadItemCard(
                 formattedSize = formatBytes(task.fileSizeBytes)
             )
 
-            if (task.status == DownloadStatus.COMPLETED) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Button(
-                        onClick = onPlay,
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(spacing.extraSmall))
-                        Text(text = "Play Offline")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                when (task.status) {
+                    DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> {
+                        OutlinedButton(
+                            onClick = onPause,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text(text = "Pause")
+                        }
+                    }
+
+                    DownloadStatus.PAUSED -> {
+                        Button(
+                            onClick = onResume,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text(text = "Resume")
+                        }
+                    }
+
+                    DownloadStatus.FAILED -> {
+                        Button(
+                            onClick = onRetry,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text(text = "Retry")
+                        }
+                    }
+
+                    DownloadStatus.COMPLETED -> {
+                        Button(
+                            onClick = onPlay,
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text(text = "Play Offline")
+                        }
                     }
                 }
             }
