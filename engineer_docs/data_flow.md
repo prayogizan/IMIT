@@ -56,6 +56,11 @@ flowchart LR
 | `DownloadVideo` | `initiateDownload()` | Checks runtime `POST_NOTIFICATIONS` permission on Android 13+ (API 33+), then inserts `DownloadedVideoEntity(PENDING)` & enqueues WorkManager via `DownloadManagerHelper` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` or `Success(downloadStatus=FAILED, downloadError=...)` |
 | `ToggleDescription` | `toggleDescription()` | `Success(isDescriptionExpanded=!current)` |
 | `Retry` | `loadDetail()` | Any → `Loading` → network → checks DB for active download (`DOWNLOADING`/`PENDING`) to trigger `observeDownloadProgress(identifier)` → `Success` or `Error` |
+| `DismissDownloadError` | `dismissDownloadError()` | `Success(downloadError=null)` |
+| `PauseDownload` | `pauseDownload()` | Calls `DownloadManagerHelper.pauseDownload(identifier)` → `Success(downloadStatus=PAUSED)` |
+| `ResumeDownload` | `resumeDownload()` | Calls `DownloadManagerHelper.resumeDownload(...)` with `ExistingWorkPolicy.REPLACE` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` |
+| `RetryDownload` | `retryDownload()` | Re-enqueues work via `resumeDownload()` → `Success(downloadStatus=PENDING)` |
+| `CancelDownload` | `cancelDownload()` | Cancels observation, deletes `.tmp`/final files via `DownloadManagerHelper.cancelDownload(...)`, deletes Room entity via `deleteById(...)` → `Success(downloadStatus=null, downloadProgress=0, downloadError=null)` |
 
 ### Detail WorkManager Progress Observation Flow
 
@@ -66,11 +71,13 @@ flowchart LR
     C -->|ENQUEUED / BLOCKED| D[PENDING]
     C -->|RUNNING| E["DOWNLOADING (0..100%)"]
     C -->|SUCCEEDED| F["COMPLETED (100%)"]
-    C -->|FAILED / CANCELLED| G["FAILED (downloadError)"]
-    D --> H[_uiState.value = Success]
-    E --> H
-    F --> H
-    G --> H
+    C -->|CANCELLED| G["PAUSED"]
+    C -->|FAILED| H["FAILED (downloadError)"]
+    D --> I[_uiState.value = Success]
+    E --> I
+    F --> I
+    G --> I
+    H --> I
 ```
 
 ## Repository Data Flow

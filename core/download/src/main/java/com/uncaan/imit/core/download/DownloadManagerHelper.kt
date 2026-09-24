@@ -60,7 +60,7 @@ open class DownloadManagerHelper(
      * @param fileName Destination file name, defaults to "$identifier.mp4".
      * @return [Result] containing the scheduled [UUID] on success, or an exception on error.
      */
-    fun enqueueDownload(
+    open fun enqueueDownload(
         identifier: String,
         title: String,
         downloadUrl: String,
@@ -98,23 +98,78 @@ open class DownloadManagerHelper(
     }
 
     /**
+     * Resumes a paused video download work request.
+     *
+     * Validates that at least 500MB of storage is available before scheduling.
+     * Enqueues as unique work with [ExistingWorkPolicy.REPLACE] so that the worker
+     * picks up any existing `.tmp` partial file and uses HTTP Range request.
+     *
+     * @param identifier Unique Archive.org identifier for the video.
+     * @param title Display title shown in notification.
+     * @param downloadUrl Direct URL to stream the video.
+     * @param fileName Destination file name, defaults to "$identifier.mp4".
+     * @return [Result] containing the scheduled [UUID] on success, or an exception on error.
+     */
+    open fun resumeDownload(
+        identifier: String,
+        title: String,
+        downloadUrl: String,
+        fileName: String = "$identifier.mp4"
+    ): Result<UUID> {
+        if (!hasEnoughStorage()) {
+            return Result.failure(IllegalStateException("Insufficient storage space (< 500MB free)"))
+        }
+
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val inputData = workDataOf(
+            VideoDownloadWorker.KEY_IDENTIFIER to identifier,
+            VideoDownloadWorker.KEY_TITLE to title,
+            VideoDownloadWorker.KEY_DOWNLOAD_URL to downloadUrl,
+            VideoDownloadWorker.KEY_FILE_NAME to fileName
+        )
+
+        val workRequest = OneTimeWorkRequestBuilder<VideoDownloadWorker>()
+            .setConstraints(constraints)
+            .setInputData(inputData)
+            .addTag(TAG_ALL_DOWNLOADS)
+            .addTag("$TAG_DOWNLOAD_PREFIX$identifier")
+            .build()
+
+        workManager.enqueueUniqueWork(
+            getUniqueWorkName(identifier),
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
+
+        return Result.success(workRequest.id)
+    }
+
+    /**
      * Pauses an active download by cancelling its unique WorkManager job.
      *
      * @param identifier Video item identifier to pause.
      */
-    fun pauseDownload(identifier: String) {
+    open fun pauseDownload(identifier: String) {
         workManager.cancelUniqueWork(getUniqueWorkName(identifier))
     }
 
     /**
-     * Cancels an active or queued download and removes any partial or existing file.
+     * Cancels an active or queued download and removes any partial (.tmp) or finalized video file.
      *
      * @param identifier Video item identifier to cancel.
+     * @param fileName Destination file name, defaults to "$identifier.mp4".
      */
-    fun cancelDownload(identifier: String) {
+    open fun cancelDownload(identifier: String, fileName: String = "$identifier.mp4") {
         workManager.cancelUniqueWork(getUniqueWorkName(identifier))
         val targetDir = getDownloadDirectory()
-        val targetFile = File(targetDir, "$identifier.mp4")
+        val partialFile = File(targetDir, "$fileName.tmp")
+        if (partialFile.exists()) {
+            partialFile.delete()
+        }
+        val targetFile = File(targetDir, fileName)
         if (targetFile.exists()) {
             targetFile.delete()
         }
@@ -126,7 +181,7 @@ open class DownloadManagerHelper(
      * @param identifier Video item identifier to observe.
      * @return [Flow] emitting the latest [WorkInfo] or null if no work exists.
      */
-    fun getWorkInfoFlow(identifier: String): Flow<WorkInfo?> {
+    open fun getWorkInfoFlow(identifier: String): Flow<WorkInfo?> {
         return workManager.getWorkInfosForUniqueWorkFlow(getUniqueWorkName(identifier))
             .map { it.firstOrNull() }
     }
