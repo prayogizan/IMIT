@@ -60,6 +60,10 @@ class DetailViewModel(
             is DetailUiEvent.ToggleDescription -> toggleDescription()
             is DetailUiEvent.Retry -> loadDetail()
             is DetailUiEvent.DismissDownloadError -> dismissDownloadError()
+            is DetailUiEvent.PauseDownload -> pauseDownload()
+            is DetailUiEvent.ResumeDownload -> resumeDownload()
+            is DetailUiEvent.RetryDownload -> retryDownload()
+            is DetailUiEvent.CancelDownload -> cancelDownload()
         }
     }
 
@@ -178,7 +182,7 @@ class DetailViewModel(
                     WorkInfo.State.RUNNING -> DownloadStatus.DOWNLOADING
                     WorkInfo.State.SUCCEEDED -> DownloadStatus.COMPLETED
                     WorkInfo.State.FAILED -> DownloadStatus.FAILED
-                    WorkInfo.State.CANCELLED -> DownloadStatus.FAILED
+                    WorkInfo.State.CANCELLED -> DownloadStatus.PAUSED
                     WorkInfo.State.BLOCKED -> DownloadStatus.PENDING
                 }
 
@@ -195,6 +199,89 @@ class DetailViewModel(
                 )
             }
             .launchIn(viewModelScope)
+    }
+
+    private fun pauseDownload() {
+        downloadManagerHelper.pauseDownload(identifier)
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        _uiState.value = current.copy(downloadStatus = DownloadStatus.PAUSED)
+    }
+
+    private fun resumeDownload() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        val stream = current.selectedStream ?: return
+
+        val resumeResult = downloadManagerHelper.resumeDownload(
+            identifier = identifier,
+            title = current.detail.title,
+            downloadUrl = stream.streamUrl,
+            fileName = stream.fileName
+        )
+
+        resumeResult.fold(
+            onSuccess = {
+                _uiState.value = current.copy(
+                    downloadStatus = DownloadStatus.PENDING,
+                    downloadError = null
+                )
+                observeDownloadProgress(identifier)
+            },
+            onFailure = { error ->
+                viewModelScope.launch {
+                    downloadedVideoDao.updateStatus(identifier, DownloadStatus.FAILED)
+                }
+                _uiState.value = current.copy(
+                    downloadStatus = DownloadStatus.FAILED,
+                    downloadError = error.message ?: "Failed to resume download"
+                )
+            }
+        )
+    }
+
+    private fun retryDownload() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        val stream = current.selectedStream ?: return
+
+        val resumeResult = downloadManagerHelper.resumeDownload(
+            identifier = identifier,
+            title = current.detail.title,
+            downloadUrl = stream.streamUrl,
+            fileName = stream.fileName
+        )
+
+        resumeResult.fold(
+            onSuccess = {
+                _uiState.value = current.copy(
+                    downloadStatus = DownloadStatus.PENDING,
+                    downloadError = null
+                )
+                observeDownloadProgress(identifier)
+            },
+            onFailure = { error ->
+                viewModelScope.launch {
+                    downloadedVideoDao.updateStatus(identifier, DownloadStatus.FAILED)
+                }
+                _uiState.value = current.copy(
+                    downloadStatus = DownloadStatus.FAILED,
+                    downloadError = error.message ?: "Failed to retry download"
+                )
+            }
+        )
+    }
+
+    private fun cancelDownload() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        val fileName = current.selectedStream?.fileName ?: "$identifier.mp4"
+        downloadProgressJob?.cancel()
+        downloadManagerHelper.cancelDownload(identifier, fileName)
+        viewModelScope.launch {
+            downloadedVideoDao.deleteById(identifier)
+            _uiState.value = current.copy(
+                downloadStatus = null,
+                downloadProgress = 0,
+                downloadError = null
+            )
+        }
     }
 
     private fun toggleDescription() {

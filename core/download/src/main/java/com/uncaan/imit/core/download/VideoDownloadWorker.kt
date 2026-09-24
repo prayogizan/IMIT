@@ -27,7 +27,8 @@ import kotlin.math.abs
  * - Low-importance foreground notification with continuous percentage progress.
  * - Storage space guard verifying available disk space (>= 500MB) before downloading.
  * - Real-time progress updates persisted to Room database via [DownloadedVideoDao].
- * - Clean cooperative cancellation and storage cleanup on job interruption.
+ * - HTTP byte-range resumption (`Range: bytes=<existingSize>-`) using temporary files (`.tmp`).
+ * - Clean cooperative cancellation preserving partial `.tmp` files for subsequent resume.
  *
  * @param context Android application context.
  * @param workerParams WorkManager worker parameters.
@@ -122,34 +123,70 @@ class VideoDownloadWorker(
             return Result.failure(workDataOf(KEY_ERROR to "Insufficient storage space (<500MB)"))
         }
 
-        val targetFile = File(targetDir, fileName)
+        val outputFile = File(targetDir, fileName)
+        val partialFile = File(targetDir, "$fileName.tmp")
+
+        var totalBytes = -1L
+        var downloadedBytes = 0L
+        var currentProgress = 0
 
         return try {
-            downloadDao.updateProgress(identifier, 0, DownloadStatus.DOWNLOADING)
-            val request = Request.Builder().url(downloadUrl).build()
+            val existingBytes = if (partialFile.exists()) partialFile.length() else 0L
+            val requestBuilder = Request.Builder().url(downloadUrl)
+            if (existingBytes > 0L) {
+                requestBuilder.addHeader("Range", "bytes=$existingBytes-")
+            }
+
+            val request = requestBuilder.build()
             val response = okHttpClient.newCall(request).execute()
             val body = response.body
             if (!response.isSuccessful) {
                 body.close()
+                if (response.code == 416 && partialFile.exists()) {
+                    partialFile.delete()
+                }
                 downloadDao.updateStatus(identifier, DownloadStatus.FAILED)
-                return Result.failure()
+                return Result.failure(workDataOf(KEY_ERROR to "HTTP error: ${response.code}"))
             }
 
-            val totalBytes = body.contentLength()
-            var downloadedBytes = 0L
-            var lastReportedProgress = -1
+            val isPartial = response.code == 206
+            val appendMode: Boolean
+
+            if (isPartial) {
+                appendMode = true
+                val contentLength = body.contentLength()
+                totalBytes = if (contentLength >= 0) existingBytes + contentLength else -1L
+                downloadedBytes = existingBytes
+            } else {
+                appendMode = false
+                downloadedBytes = 0L
+                totalBytes = body.contentLength()
+            }
+
+            currentProgress = if (totalBytes > 0) {
+                ((downloadedBytes * 100) / totalBytes).toInt()
+            } else {
+                0
+            }
+            var lastReportedProgress = currentProgress
+
+            downloadDao.updateProgress(identifier, currentProgress, DownloadStatus.DOWNLOADING)
+            setProgress(workDataOf(KEY_PROGRESS to currentProgress))
+            setForeground(createForegroundInfo(title, currentProgress))
 
             body.byteStream().use { input ->
-                FileOutputStream(targetFile).use { output ->
+                FileOutputStream(partialFile, appendMode).use { output ->
                     val buffer = ByteArray(BUFFER_SIZE)
                     var bytesRead: Int
 
                     while (input.read(buffer).also { bytesRead = it } != -1) {
                         if (isStopped) {
-                            if (targetFile.exists()) {
-                                targetFile.delete()
+                            currentProgress = if (totalBytes > 0) {
+                                ((downloadedBytes * 100) / totalBytes).toInt()
+                            } else {
+                                0
                             }
-                            downloadDao.updateStatus(identifier, DownloadStatus.PAUSED)
+                            downloadDao.updateProgress(identifier, currentProgress, DownloadStatus.PAUSED)
                             return Result.failure()
                         }
 
@@ -164,6 +201,7 @@ class VideoDownloadWorker(
 
                         if (progress != lastReportedProgress) {
                             lastReportedProgress = progress
+                            currentProgress = progress
                             setProgress(workDataOf(KEY_PROGRESS to progress))
                             downloadDao.updateProgress(identifier, progress, DownloadStatus.DOWNLOADING)
                             setForeground(createForegroundInfo(title, progress))
@@ -172,26 +210,34 @@ class VideoDownloadWorker(
                 }
             }
 
+            if (outputFile.exists()) {
+                outputFile.delete()
+            }
+            val renameSuccess = partialFile.renameTo(outputFile)
+            val finalPath = if (renameSuccess) outputFile.absolutePath else partialFile.absolutePath
+
             downloadDao.markCompleted(
                 identifier = identifier,
-                localFilePath = targetFile.absolutePath,
+                localFilePath = finalPath,
                 status = DownloadStatus.COMPLETED,
                 downloadedAt = System.currentTimeMillis()
             )
             showCompletionNotification(title)
             Result.success(workDataOf(KEY_PROGRESS to 100))
         } catch (e: CancellationException) {
-            if (targetFile.exists()) {
-                targetFile.delete()
+            currentProgress = if (totalBytes > 0) {
+                ((downloadedBytes * 100) / totalBytes).toInt()
+            } else {
+                0
             }
-            downloadDao.updateStatus(identifier, DownloadStatus.PAUSED)
+            downloadDao.updateProgress(identifier, currentProgress, DownloadStatus.PAUSED)
             throw e
         } catch (e: Exception) {
-            if (targetFile.exists()) {
-                targetFile.delete()
+            if (partialFile.exists()) {
+                partialFile.delete()
             }
             downloadDao.updateStatus(identifier, DownloadStatus.FAILED)
-            Result.retry()
+            Result.failure(workDataOf(KEY_ERROR to (e.localizedMessage ?: "Download failed")))
         }
     }
 

@@ -102,4 +102,86 @@ class DownloadManagerHelperTest {
 
         assertFalse(result)
     }
+
+    @Test
+    fun `resumeDownload fails when storage check returns false`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+
+        val helper = object : DownloadManagerHelper(mockContext, mockWorkManager) {
+            override fun hasEnoughStorage(): Boolean = false
+        }
+
+        val result = helper.resumeDownload(
+            identifier = "lecture-1",
+            title = "Intro to Algorithms",
+            downloadUrl = "https://archive.org/download/sample.mp4"
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("Insufficient storage") == true)
+    }
+
+    @Test
+    fun `resumeDownload enqueues work with REPLACE policy when storage sufficient`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+
+        val helper = object : DownloadManagerHelper(mockContext, mockWorkManager) {
+            override fun hasEnoughStorage(): Boolean = true
+        }
+
+        val result = helper.resumeDownload(
+            identifier = "lecture-1",
+            title = "Intro to Algorithms",
+            downloadUrl = "https://archive.org/download/sample.mp4"
+        )
+
+        assertTrue(result.isSuccess)
+        io.mockk.verify {
+            mockWorkManager.enqueueUniqueWork(
+                "download_lecture-1",
+                androidx.work.ExistingWorkPolicy.REPLACE,
+                any<androidx.work.OneTimeWorkRequest>()
+            )
+        }
+    }
+
+    @Test
+    fun `pauseDownload cancels unique work`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        helper.pauseDownload("lecture-1")
+
+        io.mockk.verify {
+            mockWorkManager.cancelUniqueWork("download_lecture-1")
+        }
+    }
+
+    @Test
+    fun `cancelDownload cancels work and deletes both tmp and final files`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+
+        val tempDir = java.nio.file.Files.createTempDirectory("test_download_dir").toFile()
+        val tmpFile = File(tempDir, "lecture-1.mp4.tmp").apply { writeText("partial data") }
+        val finalFile = File(tempDir, "lecture-1.mp4").apply { writeText("final data") }
+
+        assertTrue(tmpFile.exists())
+        assertTrue(finalFile.exists())
+
+        val helper = object : DownloadManagerHelper(mockContext, mockWorkManager) {
+            override fun getDownloadDirectory(): File = tempDir
+        }
+
+        helper.cancelDownload("lecture-1", "lecture-1.mp4")
+
+        io.mockk.verify {
+            mockWorkManager.cancelUniqueWork("download_lecture-1")
+        }
+        assertFalse(tmpFile.exists())
+        assertFalse(finalFile.exists())
+    }
 }

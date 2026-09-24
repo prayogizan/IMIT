@@ -30,11 +30,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -389,7 +392,7 @@ private fun DetailSuccessContent(
                 }
 
                 when (state.downloadStatus) {
-                    null, DownloadStatus.FAILED -> {
+                    null -> {
                         OutlinedButton(
                             onClick = onDownloadClick,
                             modifier = Modifier.weight(1f),
@@ -402,6 +405,54 @@ private fun DetailSuccessContent(
                             )
                             Spacer(modifier = Modifier.width(spacing.extraSmall))
                             Text("Download")
+                        }
+                    }
+
+                    DownloadStatus.PENDING, DownloadStatus.DOWNLOADING -> {
+                        OutlinedButton(
+                            onClick = { onEvent(DetailUiEvent.PauseDownload) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Pause,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text("Pause")
+                        }
+                    }
+
+                    DownloadStatus.PAUSED -> {
+                        Button(
+                            onClick = { onEvent(DetailUiEvent.ResumeDownload) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text("Resume")
+                        }
+                    }
+
+                    DownloadStatus.FAILED -> {
+                        Button(
+                            onClick = { onEvent(DetailUiEvent.RetryDownload) },
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(spacing.extraSmall))
+                            Text("Retry")
                         }
                     }
 
@@ -420,15 +471,11 @@ private fun DetailSuccessContent(
                             Text("Play Downloaded Video")
                         }
                     }
-
-                    else -> {
-                        // In-progress downloads (PENDING, DOWNLOADING, PAUSED) rendered by DownloadProgressIndicator below
-                    }
                 }
             }
 
-            // Download progress indicator if downloading or pending
-            if (state.downloadStatus != null && state.downloadStatus != DownloadStatus.FAILED) {
+            // Download progress indicator if downloading, pending, paused, or failed
+            if (state.downloadStatus != null && state.downloadStatus != DownloadStatus.COMPLETED) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -436,12 +483,41 @@ private fun DetailSuccessContent(
                     ),
                     shape = MaterialTheme.shapes.medium
                 ) {
-                    DownloadProgressIndicator(
-                        progress = state.downloadProgress,
-                        status = state.downloadStatus,
-                        formattedSize = state.selectedStream?.formattedSize,
-                        modifier = Modifier.padding(spacing.medium)
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(spacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(spacing.small)
+                    ) {
+                        DownloadProgressIndicator(
+                            progress = state.downloadProgress,
+                            status = state.downloadStatus,
+                            formattedSize = state.selectedStream?.formattedSize
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { onEvent(DetailUiEvent.CancelDownload) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.width(spacing.extraSmall))
+                                Text(
+                                    text = "Cancel Download",
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
