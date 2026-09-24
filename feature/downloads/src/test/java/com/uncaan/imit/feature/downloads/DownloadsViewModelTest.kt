@@ -168,4 +168,109 @@ class DownloadsViewModelTest {
             assertNull(awaitItem())
         }
     }
+
+    @Test
+    fun `PauseDownload calls downloadManager pauseDownload and updates dao status to PAUSED`() = runTest(testDispatcher) {
+        every { downloadedVideoDao.getAllDownloads() } returns flowOf(listOf(sampleEntity))
+
+        val viewModel = DownloadsViewModel(
+            downloadedVideoDao = downloadedVideoDao,
+            downloadManager = downloadManager
+        )
+        advanceUntilIdle()
+
+        viewModel.onEvent(DownloadsUiEvent.PauseDownload("mit-ocw-lec01"))
+        advanceUntilIdle()
+
+        verify { downloadManager.pauseDownload("mit-ocw-lec01") }
+        coVerify { downloadedVideoDao.updateStatus("mit-ocw-lec01", DownloadStatus.PAUSED) }
+    }
+
+    @Test
+    fun `ResumeDownload calls downloadManager resumeDownload`() = runTest(testDispatcher) {
+        every { downloadedVideoDao.getAllDownloads() } returns flowOf(listOf(sampleEntity))
+        every {
+            downloadManager.resumeDownload(any(), any(), any(), any())
+        } returns Result.success(java.util.UUID.randomUUID())
+
+        val viewModel = DownloadsViewModel(
+            downloadedVideoDao = downloadedVideoDao,
+            downloadManager = downloadManager
+        )
+        advanceUntilIdle()
+
+        viewModel.onEvent(
+            DownloadsUiEvent.ResumeDownload(
+                identifier = "mit-ocw-lec01",
+                title = "Lecture 1",
+                downloadUrl = "https://archive.org/download/lec01.mp4",
+                fileName = "lec01.mp4"
+            )
+        )
+        advanceUntilIdle()
+
+        verify {
+            downloadManager.resumeDownload(
+                identifier = "mit-ocw-lec01",
+                title = "Lecture 1",
+                downloadUrl = "https://archive.org/download/lec01.mp4",
+                fileName = "lec01.mp4"
+            )
+        }
+    }
+
+    @Test
+    fun `RetryDownload calls downloadManager resumeDownload`() = runTest(testDispatcher) {
+        every { downloadedVideoDao.getAllDownloads() } returns flowOf(listOf(sampleEntity))
+        every {
+            downloadManager.resumeDownload(any(), any(), any(), any())
+        } returns Result.success(java.util.UUID.randomUUID())
+
+        val viewModel = DownloadsViewModel(
+            downloadedVideoDao = downloadedVideoDao,
+            downloadManager = downloadManager
+        )
+        advanceUntilIdle()
+
+        viewModel.onEvent(
+            DownloadsUiEvent.RetryDownload(
+                identifier = "mit-ocw-lec01",
+                title = "Lecture 1",
+                downloadUrl = "https://archive.org/download/lec01.mp4",
+                fileName = "lec01.mp4"
+            )
+        )
+        advanceUntilIdle()
+
+        verify {
+            downloadManager.resumeDownload(
+                identifier = "mit-ocw-lec01",
+                title = "Lecture 1",
+                downloadUrl = "https://archive.org/download/lec01.mp4",
+                fileName = "lec01.mp4"
+            )
+        }
+    }
+
+    @Test
+    fun `CancelDownload cancels download in helper and deletes record from dao`() = runTest(testDispatcher) {
+        every { downloadedVideoDao.getAllDownloads() } returns flowOf(listOf(sampleEntity))
+
+        val viewModel = DownloadsViewModel(
+            downloadedVideoDao = downloadedVideoDao,
+            downloadManager = downloadManager
+        )
+        advanceUntilIdle()
+
+        viewModel.onEvent(
+            DownloadsUiEvent.CancelDownload(
+                identifier = "mit-ocw-lec01",
+                fileName = "lec01.mp4"
+            )
+        )
+        advanceUntilIdle()
+
+        verify { downloadManager.cancelDownload("mit-ocw-lec01", "lec01.mp4") }
+        coVerify { downloadedVideoDao.deleteDownload("mit-ocw-lec01") }
+    }
 }
