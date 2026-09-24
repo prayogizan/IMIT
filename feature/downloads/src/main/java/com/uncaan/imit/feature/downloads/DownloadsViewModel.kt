@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.uncaan.imit.core.database.dao.DownloadedVideoDao
 import com.uncaan.imit.core.database.mapper.toDownloadTask
 import com.uncaan.imit.core.download.DownloadManagerHelper
+import com.uncaan.imit.core.model.DownloadStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -55,6 +56,65 @@ class DownloadsViewModel(
             is DownloadsUiEvent.PlayVideo -> {
                 // Playback routing handled by screen navigation callback
             }
+            is DownloadsUiEvent.PauseDownload -> pauseDownload(event.identifier)
+            is DownloadsUiEvent.ResumeDownload -> resumeDownload(
+                identifier = event.identifier,
+                title = event.title,
+                downloadUrl = event.downloadUrl,
+                fileName = event.fileName
+            )
+            is DownloadsUiEvent.RetryDownload -> retryDownload(
+                identifier = event.identifier,
+                title = event.title,
+                downloadUrl = event.downloadUrl,
+                fileName = event.fileName
+            )
+            is DownloadsUiEvent.CancelDownload -> cancelDownload(
+                identifier = event.identifier,
+                fileName = event.fileName
+            )
+        }
+    }
+
+    private fun pauseDownload(identifier: String) {
+        downloadManager.pauseDownload(identifier)
+        viewModelScope.launch {
+            downloadedVideoDao.updateStatus(identifier, DownloadStatus.PAUSED)
+        }
+    }
+
+    private fun resumeDownload(
+        identifier: String,
+        title: String,
+        downloadUrl: String,
+        fileName: String
+    ) {
+        val result = downloadManager.resumeDownload(
+            identifier = identifier,
+            title = title,
+            downloadUrl = downloadUrl,
+            fileName = fileName
+        )
+        if (result.isFailure) {
+            viewModelScope.launch {
+                downloadedVideoDao.updateStatus(identifier, DownloadStatus.FAILED)
+            }
+        }
+    }
+
+    private fun retryDownload(
+        identifier: String,
+        title: String,
+        downloadUrl: String,
+        fileName: String
+    ) {
+        resumeDownload(identifier, title, downloadUrl, fileName)
+    }
+
+    private fun cancelDownload(identifier: String, fileName: String) {
+        downloadManager.cancelDownload(identifier, fileName)
+        viewModelScope.launch {
+            downloadedVideoDao.deleteDownload(identifier)
         }
     }
 
