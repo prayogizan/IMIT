@@ -209,6 +209,7 @@ private fun DownloadsContent(
             ) { task ->
                 DownloadItemCard(
                     task = task,
+                    liveProgress = state.liveProgressMap[task.identifier],
                     onPlay = {
                         val playTarget = task.localFilePath ?: task.downloadUrl
                         onPlayVideo(playTarget)
@@ -306,6 +307,7 @@ private fun StorageTelemetryCard(
 @Composable
 private fun DownloadItemCard(
     task: DownloadTask,
+    liveProgress: Int? = null,
     onPlay: () -> Unit,
     onDelete: () -> Unit,
     onPause: () -> Unit,
@@ -314,6 +316,7 @@ private fun DownloadItemCard(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val displayProgress = liveProgress ?: task.progress
     val spacing = MaterialTheme.spacing
 
     Card(
@@ -382,7 +385,7 @@ private fun DownloadItemCard(
             }
 
             DownloadProgressIndicator(
-                progress = task.progress,
+                progress = displayProgress,
                 status = task.status,
                 formattedSize = formatBytes(task.fileSizeBytes)
             )
@@ -575,7 +578,8 @@ private fun DownloadsScreenSuccessPreview() {
             state = DownloadsUiState.Success(
                 downloads = sampleTasks,
                 totalStorageUsedBytes = 245 * 1024 * 1024L,
-                availableStorageMb = 14500L
+                availableStorageMb = 14500L,
+                liveProgressMap = mapOf("mit-ocw-18.06-lec02" to 62)
             ),
             onEvent = {},
             onPlayVideo = {}

@@ -80,6 +80,41 @@ flowchart LR
     H --> I
 ```
 
+### Downloads WorkManager Progress Observation & Storage Synchronization Flow
+
+```mermaid
+flowchart TD
+    subgraph Sources["Reactive Flow Sources"]
+        A["downloadedVideoDao.getAllDownloads()<br/>(Room Flow)"]
+        B["downloadManager.getAllDownloadsWorkInfoFlow()<br/>(WorkManager TAG_ALL_DOWNLOADS Flow)"]
+    end
+
+    subgraph Combine["DownloadsViewModel.observeDownloads()"]
+        C["combine(RoomFlow, WorkInfoFlow)"]
+        D{"Entities Empty?"}
+        E["DownloadsUiState.Empty"]
+        F["Build liveProgressMap<br/>(extract identifier + WorkInfo.State / KEY_PROGRESS)"]
+        G["Recalculate Storage Metrics<br/>(getTotalDownloadedSize + getAvailableStorageMb)"]
+        H["DownloadsUiState.Success<br/>(downloads, totalSize, availableMb, liveProgressMap)"]
+    end
+
+    subgraph UI["DownloadsScreen"]
+        I["DownloadItemCard<br/>(prefers liveProgress over task.progress)"]
+        J["StorageTelemetryCard<br/>(real-time gauge sync)"]
+    end
+
+    A --> C
+    B --> C
+    C --> D
+    D -->|Yes| E
+    D -->|No| F
+    F --> G
+    G --> H
+    H --> I
+    H --> J
+```
+
+
 ## Repository Data Flow
 
 ### Network-First with Cache Fallback (getMitOcwVideos)
