@@ -25,11 +25,16 @@ sealed interface DownloadsUiState {
      * @property downloads Current list of downloaded or in-progress video tasks.
      * @property totalStorageUsedBytes Total disk space occupied by completed video downloads in bytes.
      * @property availableStorageMb Free disk space available on the download partition in megabytes.
+     * @property liveProgressMap Real-time download progress sourced directly from WorkManager
+     *           [androidx.work.WorkInfo.progress], keyed by video identifier (0..100 percentage).
+     *           When present for an identifier, this value takes priority over [DownloadTask.progress]
+     *           (which depends on Room database writes) to eliminate write bottleneck latency.
      */
     data class Success(
         val downloads: List<DownloadTask> = emptyList(),
         val totalStorageUsedBytes: Long = 0L,
-        val availableStorageMb: Long = 0L
+        val availableStorageMb: Long = 0L,
+        val liveProgressMap: Map<String, Int> = emptyMap()
     ) : DownloadsUiState
 
     /**
