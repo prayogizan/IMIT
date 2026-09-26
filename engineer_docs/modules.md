@@ -218,7 +218,7 @@ WorkManager background download engine with Koin worker injection, foreground no
 | File | Purpose |
 |------|---------|
 | `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, and `CancellationException` rethrow rule. |
-| `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), resume (`ExistingWorkPolicy.REPLACE`), unique work tagging, pause, cancellation with `.tmp` and finalized file cleanup, disk storage checks, and reactive `WorkInfo` Flow observation. |
+| `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), resume (`ExistingWorkPolicy.REPLACE`), unique work tagging, pause, cancellation with `.tmp` and finalized file cleanup, disk storage checks, reactive single-download `WorkInfo` Flow observation via `getWorkInfoFlow()`, bulk download observation via `getAllDownloadsWorkInfoFlow()` (tagged with `TAG_ALL_DOWNLOADS`), and identifier extraction from `WorkInfo` tags via `getIdentifierFromWorkInfo()`. |
 | `di/DownloadModule.kt` | Koin module providing `DownloadManagerHelper` singleton and `VideoDownloadWorker` via Koin's `worker { }` DSL. |
 
 ### Key Behaviors
@@ -293,15 +293,16 @@ Manages offline video library with real-time Room observation, device storage te
 | Component | Responsibility |
 |-----------|----------------|
 | `DownloadsScreen.kt` | Material 3 UI displaying storage usage card, download list, empty state, per-item lifecycle action buttons (Pause, Resume, Retry, Play, Cancel), and delete confirmation dialog |
-| `DownloadsViewModel.kt` | Observes downloaded items via `DownloadedVideoDao`, manages lifecycle actions (pause, resume, retry, cancel), manages disk deletion via `DownloadManagerHelper`, computes storage telemetry |
-| `DownloadsUiState.kt` | Sealed interface with `Loading`, `Empty`, `Success(downloads, totalStorageUsedBytes, availableStorageMb)`, `Error(message)` |
+| `DownloadsViewModel.kt` | Combines Room observation (`DownloadedVideoDao`) with live WorkManager progress streaming (`DownloadManagerHelper.getAllDownloadsWorkInfoFlow()`). Builds `liveProgressMap` from `WorkInfo.progress` for active downloads, bypassing database write bottlenecks. Recalculates storage telemetry on every combined emission. Manages lifecycle actions (pause, resume, retry, cancel) and disk deletion. |
+| `DownloadsUiState.kt` | Sealed interface with `Loading`, `Empty`, `Success(downloads, totalStorageUsedBytes, availableStorageMb, liveProgressMap)`, `Error(message)`. `liveProgressMap: Map<String, Int>` overlays real-time WorkManager progress per identifier. |
 | `DownloadsUiEvent.kt` | Sealed interface for user interactions (`DeleteDownload`, `ConfirmDelete`, `DismissDeleteDialog`, `PlayVideo`, `PauseDownload`, `ResumeDownload`, `RetryDownload`, `CancelDownload`) |
 | `DownloadsModule.kt` | Koin DI module declaring `downloadsViewModelModule` with `viewModelOf(::DownloadsViewModel)` |
 
 ### Screen Capabilities
 
-- Storage telemetry banner displaying formatted storage used and free disk space with visual progress indicator.
-- Reactive `Flow` updates from `downloaded_videos` table via `DownloadedVideoDao.getAllDownloads()`.
+- Storage telemetry banner displaying formatted storage used and free disk space with visual progress indicator. Recalculates reactively on every combined Room + WorkManager emission.
+- Reactive `Flow` updates combining `downloaded_videos` table via `DownloadedVideoDao.getAllDownloads()` with live `WorkInfo` progress from `DownloadManagerHelper.getAllDownloadsWorkInfoFlow()`.
+- Real-time download progress displayed via `liveProgressMap` overlay, sourced directly from `WorkInfo.progress` (bypasses Room write bottlenecks).
 - Granular per-item lifecycle actions: Pause active/pending downloads, Resume paused downloads with HTTP Range byte resumption, Retry failed downloads, and Cancel downloads with `.tmp` and database cleanup.
 - Offline playback routing through `onPlayVideo` callback passing local file path or stream fallback.
 - Safe two-step deletion confirmation dialog triggering local file unlinking, database row deletion, and WorkManager task cancellation.
