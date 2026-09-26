@@ -5,6 +5,7 @@ import androidx.work.WorkManager
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -183,5 +184,58 @@ class DownloadManagerHelperTest {
         }
         assertFalse(tmpFile.exists())
         assertFalse(finalFile.exists())
+    }
+
+    @Test
+    fun `TAG_ALL_DOWNLOADS matches expected constant value`() {
+        assertEquals("tag_video_downloads", DownloadManagerHelper.TAG_ALL_DOWNLOADS)
+    }
+
+    @Test
+    fun `getIdentifierFromWorkInfo extracts identifier from download tag`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        val workInfo: androidx.work.WorkInfo = io.mockk.mockk(relaxed = true)
+        io.mockk.every { workInfo.tags } returns setOf(
+            DownloadManagerHelper.TAG_ALL_DOWNLOADS,
+            "${DownloadManagerHelper.TAG_DOWNLOAD_PREFIX}mit-ocw-6.0001-lec01"
+        )
+
+        val result = helper.getIdentifierFromWorkInfo(workInfo)
+
+        assertEquals("mit-ocw-6.0001-lec01", result)
+    }
+
+    @Test
+    fun `getIdentifierFromWorkInfo returns null when no download tag present`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        val workInfo: androidx.work.WorkInfo = io.mockk.mockk(relaxed = true)
+        io.mockk.every { workInfo.tags } returns setOf(
+            DownloadManagerHelper.TAG_ALL_DOWNLOADS,
+            "some_unrelated_tag"
+        )
+
+        val result = helper.getIdentifierFromWorkInfo(workInfo)
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `getIdentifierFromWorkInfo returns null for empty tags`() {
+        val mockContext: Context = mockk(relaxed = true)
+        val mockWorkManager: WorkManager = mockk(relaxed = true)
+        val helper = DownloadManagerHelper(mockContext, mockWorkManager)
+
+        val workInfo: androidx.work.WorkInfo = io.mockk.mockk(relaxed = true)
+        io.mockk.every { workInfo.tags } returns emptySet()
+
+        val result = helper.getIdentifierFromWorkInfo(workInfo)
+
+        assertNull(result)
     }
 }

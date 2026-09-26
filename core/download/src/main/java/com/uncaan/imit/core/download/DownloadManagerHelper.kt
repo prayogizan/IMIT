@@ -187,6 +187,39 @@ open class DownloadManagerHelper(
     }
 
     /**
+     * Observes reactive [WorkInfo] state for all video download work requests.
+     *
+     * Queries all work items tagged with [TAG_ALL_DOWNLOADS], which is applied to
+     * every download work request at enqueue time. Each Flow emission contains the
+     * full list of matching [WorkInfo] items including queued, running, succeeded,
+     * failed, and cancelled states.
+     *
+     * Use [getIdentifierFromWorkInfo] to extract the video identifier from each
+     * [WorkInfo] item's tags.
+     *
+     * @return [Flow] emitting the list of all download [WorkInfo] items.
+     * @see getIdentifierFromWorkInfo
+     */
+    open fun getAllDownloadsWorkInfoFlow(): Flow<List<WorkInfo>> {
+        return workManager.getWorkInfosByTagFlow(TAG_ALL_DOWNLOADS)
+    }
+
+    /**
+     * Extracts the video identifier from a [WorkInfo] item's tag set.
+     *
+     * Each download work request is tagged with `"{TAG_DOWNLOAD_PREFIX}{identifier}"`.
+     * This method finds the matching tag and strips the prefix to return the
+     * original Archive.org video identifier.
+     *
+     * @param workInfo The [WorkInfo] item to extract the identifier from.
+     * @return The video identifier string, or null if no matching tag is found.
+     */
+    fun getIdentifierFromWorkInfo(workInfo: WorkInfo): String? {
+        return workInfo.tags.firstOrNull { it.startsWith(TAG_DOWNLOAD_PREFIX) }
+            ?.removePrefix(TAG_DOWNLOAD_PREFIX)
+    }
+
+    /**
      * Verifies whether the destination download directory has at least 500MB free.
      *
      * @return True if available storage >= 500MB, false otherwise.
