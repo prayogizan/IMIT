@@ -41,22 +41,33 @@ import androidx.media3.ui.PlayerView
  * @param playerManager The [VideoPlayerManager] instance managing playback lifecycle.
  * @param onBackClick Callback invoked when the user taps the back button.
  * @param modifier Optional [Modifier] applied to the root container.
+ * @param title Optional title of the video for system metadata display. Defaults to empty.
+ * @param subtitle Optional subtitle, instructor, or course name. Defaults to empty.
+ * @param artworkUri Optional URI pointing to video artwork or thumbnail. Defaults to null.
  */
 @Composable
 fun VideoPlayerScreen(
     videoUrl: String,
     playerManager: VideoPlayerManager,
     onBackClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String = "",
+    subtitle: String = "",
+    artworkUri: String? = null
 ) {
     val context = LocalContext.current
     val isInspectionMode = LocalInspectionMode.current
     val isPipSupported = remember(context) { PipHelper.isPipSupported(context) }
 
     if (!isInspectionMode) {
-        LaunchedEffect(videoUrl) {
+        LaunchedEffect(videoUrl, title, subtitle, artworkUri) {
             if (videoUrl.isNotBlank()) {
-                playerManager.playVideo(videoUrl)
+                playerManager.playVideo(
+                    uri = videoUrl,
+                    title = title,
+                    subtitle = subtitle,
+                    artworkUri = artworkUri
+                )
             }
         }
 

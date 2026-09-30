@@ -40,6 +40,8 @@ module/
 | | `RateLimitInterceptorTest.kt` | Rate limiting |
 | | `DataModuleTest.kt` | Koin module verification |
 | `core:player` | `PipHelperTest.kt` | Picture-in-Picture mode configuration |
+| | `IMITMediaSessionCallbackTest.kt` | MediaSession transport commands and connection authorization |
+| | `VideoPlayerManagerTest.kt` | Player lifecycle, MediaSession binding, and MediaMetadata building |
 | | `PlayerModuleTest.kt` | Koin module verification |
 | `core:database` | `DatabaseConvertersTest.kt` | DownloadStatus conversion |
 | | `DatabaseMappersTest.kt` | Entity ↔ Domain mapping |
