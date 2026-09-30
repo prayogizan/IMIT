@@ -6,11 +6,13 @@ import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 
 private const val MIN_BUFFER_MS = 15_000
 private const val MAX_BUFFER_MS = 50_000
@@ -18,17 +20,19 @@ private const val BUFFER_FOR_PLAYBACK_MS = 1_500
 private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 2_000
 
 /**
- * Manages the lifecycle and playback controls of an [ExoPlayer] instance.
+ * Manages the lifecycle and playback controls of an [ExoPlayer] instance and its associated [MediaSession].
  *
  * Provides lazy player initialization with conservative [DefaultLoadControl] buffer sizing,
  * automatic exponential backoff retry logic on network connection failures,
+ * [MediaSession] lifecycle integration for system transport controls and metadata publishing,
  * and common playback operations (play, pause, seek, release).
  *
- * @param context Android [Context] used to construct the [ExoPlayer] instance.
+ * @param context Android [Context] used to construct the [ExoPlayer] and [MediaSession] instances.
  */
 class VideoPlayerManager(private val context: Context) {
 
     private var _player: ExoPlayer? = null
+    private var _mediaSession: MediaSession? = null
 
     /**
      * Lazily obtains or creates the underlying [ExoPlayer] instance.
@@ -80,20 +84,54 @@ class VideoPlayerManager(private val context: Context) {
                     }
                 })
             }
+
+            _mediaSession = MediaSession.Builder(context, _player!!)
+                .setCallback(IMITMediaSessionCallback())
+                .build()
         }
         return _player!!
     }
 
     /**
-     * Sets the media source and starts video playback.
+     * Returns the active [MediaSession] instance, if initialized.
+     *
+     * @return The active [MediaSession] instance, or `null` if the player has not been initialized.
+     */
+    fun getMediaSession(): MediaSession? = _mediaSession
+
+    /**
+     * Sets the media source and starts video playback with optional metadata.
      *
      * Supports remote streaming URLs (HTTP/HTTPS) as well as local file URIs.
+     * Attaches [MediaMetadata] (title, artist/course subtitle, and artwork URI)
+     * which publishes across connected [MediaSession] controllers such as Bluetooth,
+     * lockscreen, and media notifications.
      *
      * @param uri The URI string of the video stream or local file to play.
+     * @param title Title of the video or lecture. Defaults to empty string.
+     * @param subtitle Subtitle, artist, or course department name. Defaults to empty string.
+     * @param artworkUri Optional URI string pointing to artwork or thumbnail image.
      */
-    fun playVideo(uri: String) {
+    fun playVideo(
+        uri: String,
+        title: String = "",
+        subtitle: String = "",
+        artworkUri: String? = null
+    ) {
         val player = getPlayer()
-        val mediaItem = MediaItem.fromUri(uri.toUri())
+        val mediaMetadata = MediaMetadata.Builder()
+            .setTitle(title.takeIf { it.isNotBlank() })
+            .setArtist(subtitle.takeIf { it.isNotBlank() })
+            .apply {
+                artworkUri?.takeIf { it.isNotBlank() }?.let { setArtworkUri(it.toUri()) }
+            }
+            .build()
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(uri.toUri())
+            .setMediaMetadata(mediaMetadata)
+            .build()
+
         player.setMediaItem(mediaItem)
         player.prepare()
         player.playWhenReady = true
@@ -144,10 +182,12 @@ class VideoPlayerManager(private val context: Context) {
     }
 
     /**
-     * Releases the player resources and clears the internal reference.
+     * Releases the player and [MediaSession] resources and clears internal references.
      * Should be called when the player is no longer needed (e.g. screen disposed).
      */
     fun release() {
+        _mediaSession?.release()
+        _mediaSession = null
         _player?.release()
         _player = null
     }
