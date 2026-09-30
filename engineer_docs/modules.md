@@ -193,18 +193,22 @@ ExoPlayer wrapper for video playback.
 
 | File | Purpose |
 |------|---------|
-| `VideoPlayerManager.kt` | Singleton player lifecycle manager. Lazy ExoPlayer creation with conservative `DefaultLoadControl` buffer sizing, auto-retry on network errors (exponential backoff, max 3 retries). |
+| `VideoPlayerManager.kt` | Singleton player lifecycle manager. Lazy ExoPlayer creation with conservative `DefaultLoadControl` buffer sizing, auto-retry on network errors (exponential backoff, max 3 retries), `MediaSession` lifecycle binding, and `MediaMetadata` publishing. |
+| `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and controller connections. |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
-| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL changes, `DisposableEffect` for player cleanup, and PiP / top bar controls. |
+| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL and metadata changes, `DisposableEffect` for player cleanup, and PiP / top bar controls. |
 | `di/PlayerModule.kt` | Koin module providing `VideoPlayerManager` singleton. |
 
 ### Player Features
 
 - Lazy initialization: player created on first `getPlayer()` call
+- `MediaSession` integration: tied to `ExoPlayer` lifecycle, providing OS transport controls, Bluetooth peripheral support, and lockscreen/notification awareness
+- `MediaMetadata` publishing: sets lecture title, artist/course name, and thumbnail artwork URI via `playVideo()`
+- Transport command dispatch: `IMITMediaSessionCallback` accepts play, pause, stop, prepare, and seek commands from external controllers
 - Conservative `DefaultLoadControl` buffer durations (15s min, 50s max, 1.5s playback, 2s rebuffer) to maintain peak RAM < 180MB
 - Exponential backoff retry: 1s, 2s, 4s on `ERROR_CODE_IO_NETWORK_CONNECTION_FAILED`
 - Retry counter resets on `STATE_READY`
-- Player released on screen disposal via `DisposableEffect`
+- Player and `MediaSession` released on screen disposal via `DisposableEffect`
 - Picture-in-Picture (PiP) mode support with 16:9 aspect ratio on Android 8.0+ (API 26+)
 
 ---
