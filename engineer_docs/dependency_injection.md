@@ -63,7 +63,9 @@ Interface binding: `single<VideoRepository> { VideoRepositoryImpl(...) }`
 
 | Scope | Type | Binding |
 |-------|------|---------|
-| `single` | `VideoPlayerManager` | `VideoPlayerManager(get())` |
+| `single` | `VideoPlayerManager` | `VideoPlayerManager(androidContext())` |
+
+> **Note:** `VideoPlaybackService` lifecycle is managed by the Android operating system as a `MediaSessionService`. `VideoPlayerManager` acts as the singleton client facade injecting `androidContext()` to connect via `SessionToken`.
 
 ### `downloadModule` (`core:download`)
 
