@@ -3,6 +3,7 @@ package com.uncaan.imit.core.player
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -18,38 +19,51 @@ class VideoPlayerManagerTest {
 
     @Before
     fun setUp() {
-        mockContext = mockk(relaxed = true)
+        mockContext = mockk(relaxed = true) {
+            every { packageName } returns "com.uncaan.imit"
+        }
         playerManager = VideoPlayerManager(mockContext)
     }
 
     @Test
-    fun `getMediaSession returns null before player is initialized`() {
+    fun `getMediaSession returns null because session is hosted in VideoPlaybackService`() {
         assertNull(playerManager.getMediaSession())
     }
 
     @Test
-    fun `isPlaying returns false before player is initialized`() {
+    fun `getPlayer returns null before controller is connected`() {
+        assertNull(playerManager.getPlayer())
+    }
+
+    @Test
+    fun `controllerFlow emits null initially`() {
+        assertNull(playerManager.controllerFlow.value)
+    }
+
+    @Test
+    fun `isPlaying returns false before controller is connected`() {
         assertFalse(playerManager.isPlaying())
     }
 
     @Test
-    fun `getCurrentPosition returns zero before player is initialized`() {
+    fun `getCurrentPosition returns zero before controller is connected`() {
         assertEquals(0L, playerManager.getCurrentPosition())
     }
 
     @Test
-    fun `getDuration returns zero before player is initialized`() {
+    fun `getDuration returns zero before controller is connected`() {
         assertEquals(0L, playerManager.getDuration())
     }
 
     @Test
-    fun `release executes safely when player is not initialized`() {
+    fun `release executes safely when controller is not initialized`() {
         playerManager.release()
-        assertNull(playerManager.getMediaSession())
+        assertNull(playerManager.getPlayer())
+        assertNull(playerManager.controllerFlow.value)
     }
 
     @Test
-    fun `pause, play, and seekTo execute safely when player is not initialized`() {
+    fun `pause, play, and seekTo execute safely when controller is not initialized`() {
         playerManager.pause()
         playerManager.play()
         playerManager.seekTo(1000L)
