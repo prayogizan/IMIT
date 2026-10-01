@@ -20,7 +20,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,16 +32,18 @@ import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.session.MediaController
 import androidx.media3.ui.PlayerView
 
 /**
- * Screen composable that embeds the Media3 [androidx.media3.exoplayer.ExoPlayer] via [PlayerView].
+ * Screen composable that embeds the Media3 video playback surface via [PlayerView].
  *
- * Manages video loading on URL change, player release on dispose, and top overlay controls
- * including the back navigation button and Picture-in-Picture (PiP) trigger button.
+ * Connects asynchronously to [VideoPlaybackService] through the [VideoPlayerManager] client facade.
+ * Manages video loading on URL change, surface detachment on disposal without interrupting
+ * ongoing background audio playback, and top overlay controls (back navigation and PiP).
  *
  * @param videoUrl The remote URL or local file URI of the video to play.
- * @param playerManager The [VideoPlayerManager] instance managing playback lifecycle.
+ * @param playerManager The [VideoPlayerManager] client facade managing media playback.
  * @param onBackClick Callback invoked when the user taps the back button.
  * @param modifier Optional [Modifier] applied to the root container.
  * @param title Optional title of the video for system metadata display. Defaults to empty.
@@ -58,8 +63,13 @@ fun VideoPlayerScreen(
     val context = LocalContext.current
     val isInspectionMode = LocalInspectionMode.current
     val isPipSupported = remember(context) { PipHelper.isPipSupported(context) }
+    var controller by remember { mutableStateOf<MediaController?>(null) }
 
     if (!isInspectionMode) {
+        LaunchedEffect(Unit) {
+            controller = playerManager.getController()
+        }
+
         LaunchedEffect(videoUrl, title, subtitle, artworkUri) {
             if (videoUrl.isNotBlank()) {
                 playerManager.playVideo(
@@ -68,12 +78,6 @@ fun VideoPlayerScreen(
                     subtitle = subtitle,
                     artworkUri = artworkUri
                 )
-            }
-        }
-
-        DisposableEffect(Unit) {
-            onDispose {
-                playerManager.release()
             }
         }
     }
@@ -87,9 +91,14 @@ fun VideoPlayerScreen(
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
-                        player = playerManager.getPlayer()
                         useController = true
                     }
+                },
+                update = { playerView ->
+                    playerView.player = controller
+                },
+                onRelease = { playerView ->
+                    playerView.player = null
                 },
                 modifier = Modifier.fillMaxSize()
             )
@@ -180,4 +189,3 @@ private fun VideoPlayerTopControlsPreview() {
         )
     }
 }
-
