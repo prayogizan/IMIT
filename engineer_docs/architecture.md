@@ -232,7 +232,7 @@ Single `onEvent()` entry point. No public methods besides `onEvent()` and read-o
 │           Infrastructure Layer              │
 │  (core:player, core:download,               │
 │   core:designsystem)                        │
-│  ExoPlayer, WorkManager, Theme/Components   │
+│  Media3 & Notification, WorkManager, Theme  │
 └─────────────────────────────────────────────┘
 ```
 
