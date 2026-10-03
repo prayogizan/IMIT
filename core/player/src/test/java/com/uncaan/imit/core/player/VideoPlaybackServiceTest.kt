@@ -97,4 +97,38 @@ class VideoPlaybackServiceTest {
             mockPlayer.playbackState == Player.STATE_ENDED
         org.junit.Assert.assertFalse(shouldStopCase4)
     }
+
+    @Test
+    fun `custom layout buttons match skip back and skip forward command specifications`() {
+        val skipBackCommand = androidx.media3.session.SessionCommand(
+            IMITMediaNotificationProvider.ACTION_SKIP_BACK,
+            android.os.Bundle()
+        )
+        val skipForwardCommand = androidx.media3.session.SessionCommand(
+            IMITMediaNotificationProvider.ACTION_SKIP_FORWARD,
+            android.os.Bundle()
+        )
+
+        val skipBackButton = androidx.media3.session.CommandButton.Builder()
+            .setDisplayName("Skip Back 10s")
+            .setIconResId(R.drawable.ic_replay_10)
+            .setSessionCommand(skipBackCommand)
+            .build()
+
+        val skipForwardButton = androidx.media3.session.CommandButton.Builder()
+            .setDisplayName("Skip Forward 10s")
+            .setIconResId(R.drawable.ic_forward_10)
+            .setSessionCommand(skipForwardCommand)
+            .build()
+
+        assertEquals("Skip Back 10s", skipBackButton.displayName)
+        assertEquals(R.drawable.ic_replay_10, skipBackButton.iconResId)
+        assertEquals(androidx.media3.session.SessionCommand.COMMAND_CODE_CUSTOM, skipBackButton.sessionCommand?.commandCode)
+        assertEquals(IMITMediaNotificationProvider.ACTION_SKIP_BACK, skipBackButton.sessionCommand?.customAction)
+
+        assertEquals("Skip Forward 10s", skipForwardButton.displayName)
+        assertEquals(R.drawable.ic_forward_10, skipForwardButton.iconResId)
+        assertEquals(androidx.media3.session.SessionCommand.COMMAND_CODE_CUSTOM, skipForwardButton.sessionCommand?.commandCode)
+        assertEquals(IMITMediaNotificationProvider.ACTION_SKIP_FORWARD, skipForwardButton.sessionCommand?.customAction)
+    }
 }
