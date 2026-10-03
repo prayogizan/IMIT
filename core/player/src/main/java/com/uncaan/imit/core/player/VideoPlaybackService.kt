@@ -1,6 +1,7 @@
 package com.uncaan.imit.core.player
 
 import android.content.Intent
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.OptIn
@@ -11,8 +12,10 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
 
 private const val MIN_BUFFER_MS = 15_000
 private const val MAX_BUFFER_MS = 50_000
@@ -27,6 +30,8 @@ private const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 2_000
  * - Conservative [DefaultLoadControl] buffer sizing to maintain memory limit (<180MB RAM)
  * - Automatic audio focus gain/loss and "becoming noisy" headset disconnect handling
  * - Exponential backoff auto-retry on network disconnect errors (up to 3 attempts: 1s, 2s, 4s)
+ * - Notification channel and custom [IMITMediaNotificationProvider] registration
+ * - Custom transport actions (10s skip backward and forward) via [MediaSession.setCustomLayout]
  * - Self-stopping lifecycle on user task removal from recent apps when idle or ended
  * - Teardown of player and session resources when the service is destroyed
  */
@@ -39,11 +44,14 @@ class VideoPlaybackService : MediaSessionService() {
     /**
      * Initializes [ExoPlayer] and binds it to a new [MediaSession].
      *
-     * Configures audio attributes, audio focus management, noise handling,
-     * buffer thresholds, and network failure retry listeners.
+     * Configures notification channel, custom media notification provider, audio attributes,
+     * buffer thresholds, retry listeners, and custom command layout buttons.
      */
     override fun onCreate() {
         super.onCreate()
+
+        MediaNotificationChannelHelper.createChannel(this)
+        setMediaNotificationProvider(IMITMediaNotificationProvider(this))
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
@@ -91,8 +99,24 @@ class VideoPlaybackService : MediaSessionService() {
                 })
             }
 
+        val skipBackCommand = SessionCommand(IMITMediaNotificationProvider.ACTION_SKIP_BACK, Bundle())
+        val skipForwardCommand = SessionCommand(IMITMediaNotificationProvider.ACTION_SKIP_FORWARD, Bundle())
+
+        val skipBackButton = CommandButton.Builder()
+            .setDisplayName("Skip Back 10s")
+            .setIconResId(R.drawable.ic_replay_10)
+            .setSessionCommand(skipBackCommand)
+            .build()
+
+        val skipForwardButton = CommandButton.Builder()
+            .setDisplayName("Skip Forward 10s")
+            .setIconResId(R.drawable.ic_forward_10)
+            .setSessionCommand(skipForwardCommand)
+            .build()
+
         mediaSession = MediaSession.Builder(this, player!!)
             .setCallback(IMITMediaSessionCallback())
+            .setCustomLayout(listOf(skipBackButton, skipForwardButton))
             .build()
     }
 
