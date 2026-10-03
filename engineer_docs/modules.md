@@ -194,9 +194,11 @@ ExoPlayer wrapper for video playback.
 | File | Purpose |
 |------|---------|
 | `AndroidManifest.xml` | Declares foreground service permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`) and registers `VideoPlaybackService` with `foregroundServiceType="mediaPlayback"`. |
-| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, and notification integration. |
+| `MediaNotificationChannelHelper.kt` | Utility configuring and registering the low-importance `imit_media_playback` channel (`IMPORTANCE_LOW`, silent, no badge, public lockscreen visibility). |
+| `IMITMediaNotificationProvider.kt` | Custom `MediaNotification.Provider` configuring media notification appearance, metadata, artwork loading, ongoing/dismissible lifecycle, and 4 transport buttons (Skip Back 10s, Play/Pause, Skip Forward 10s, Stop) with dedicated `NOTIFICATION_ID = 2001`. |
+| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, and notification provider registration. |
 | `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`. |
-| `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and controller connections. |
+| `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and custom 10s skip commands for external/System UI controllers. |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
 | `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL and metadata changes, surface detachment on disposal without stopping background playback, and PiP / top bar controls. |
 | `di/PlayerModule.kt` | Koin module providing `VideoPlayerManager` singleton client facade. |
@@ -204,6 +206,14 @@ ExoPlayer wrapper for video playback.
 ### Player Features
 
 - Background audio playback: persists across navigation, lock screen, and home actions via `VideoPlaybackService` (`MediaSessionService`) foreground service
+- Notification channel: `imit_media_playback` registered with `IMPORTANCE_LOW` (silent, no vibration) and public lockscreen visibility
+- Media notification controls: `IMITMediaNotificationProvider` hosts Skip Back 10s (`ACTION_SKIP_BACK`), Play/Pause toggle, Skip Forward 10s (`ACTION_SKIP_FORWARD`), and Stop (`COMMAND_STOP`)
+- Compact notification view: 3 priority action indices (0: Skip Back, 1: Play/Pause, 2: Skip Forward) mapped via `MediaStyle.setShowActionsInCompactView`
+- Asynchronous artwork loader: thumbnail artwork loaded dynamically from `MediaMetadata.artworkUri` via `mediaSession.bitmapLoader`
+- Chronometer progress: real-time playback elapsed chronometer displayed during active playback
+- Notification lifecycle: ongoing during active playback (non-dismissible); becomes dismissible when paused; swipe dismissal issues `COMMAND_STOP` to teardown service
+- System UI integration: Android 13+ System UI control buttons registered via `MediaSession.setCustomLayout` and authorized through `IMITMediaSessionCallback`
+- Collision-free notification ID: dedicated `NOTIFICATION_ID = 2001` avoids conflict with background download notifications
 - Client-service decoupling: `VideoPlayerManager` communicates as a client facade using Media3 `MediaController` and `SessionToken`
 - Surface detachment: leaving `VideoPlayerScreen` detaches the `PlayerView` surface without terminating background audio
 - Lazy controller initialization: `MediaController` connected asynchronously on demand via `getController()`
