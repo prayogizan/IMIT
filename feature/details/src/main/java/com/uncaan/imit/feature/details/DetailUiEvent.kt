@@ -23,4 +23,10 @@ sealed interface DetailUiEvent {
 
     /** Cancels download, cleans up partial files, and removes database record. */
     data object CancelDownload : DetailUiEvent
+
+    /** Toggles background playback mode on/off. When enabled, audio continues via service on navigate-away. */
+    data object ToggleBackgroundPlayback : DetailUiEvent
+
+    /** Signals that the user is navigating away from the detail screen. Pauses playback if background mode is off. */
+    data object OnNavigateAway : DetailUiEvent
 }

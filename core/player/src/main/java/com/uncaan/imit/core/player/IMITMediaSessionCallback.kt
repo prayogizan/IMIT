@@ -1,7 +1,9 @@
 package com.uncaan.imit.core.player
 
 import android.os.Bundle
+import androidx.annotation.OptIn
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
@@ -15,6 +17,7 @@ import com.google.common.util.concurrent.ListenableFuture
  * incoming controller connections from Bluetooth peripherals, Android Auto,
  * lock screen media controls, and notification surfaces.
  */
+@OptIn(UnstableApi::class)
 class IMITMediaSessionCallback : MediaSession.Callback {
 
     /**
