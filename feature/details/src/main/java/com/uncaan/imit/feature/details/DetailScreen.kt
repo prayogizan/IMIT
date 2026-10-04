@@ -32,6 +32,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.HeadsetOff
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
@@ -62,6 +64,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -142,6 +145,12 @@ fun DetailScreen(
         navigateToPlayer?.let { videoUrl ->
             onPlayVideo(videoUrl)
             viewModel.onPlayerNavigated()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.onEvent(DetailUiEvent.OnNavigateAway)
         }
     }
 
@@ -375,7 +384,8 @@ private fun DetailSuccessContent(
             // Action Buttons Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.medium)
+                horizontalArrangement = Arrangement.spacedBy(spacing.medium),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Button(
                     onClick = { onEvent(DetailUiEvent.StreamVideo) },
@@ -471,6 +481,23 @@ private fun DetailSuccessContent(
                             Text("Play Downloaded Video")
                         }
                     }
+                }
+
+                // Background Playback Toggle
+                IconButton(
+                    onClick = { onEvent(DetailUiEvent.ToggleBackgroundPlayback) }
+                ) {
+                    Icon(
+                        imageVector = if (state.isBackgroundPlaybackEnabled)
+                            Icons.Filled.Headset
+                        else Icons.Filled.HeadsetOff,
+                        contentDescription = if (state.isBackgroundPlaybackEnabled)
+                            "Disable background playback"
+                        else "Enable background playback",
+                        tint = if (state.isBackgroundPlaybackEnabled)
+                            MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
