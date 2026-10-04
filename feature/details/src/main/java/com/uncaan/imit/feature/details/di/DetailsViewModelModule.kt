@@ -17,7 +17,8 @@ val detailsViewModelModule = module {
             identifier = identifier,
             videoRepository = get(),
             downloadedVideoDao = get(),
-            downloadManagerHelper = get()
+            downloadManagerHelper = get(),
+            videoPlayerManager = get(),
         )
     }
 }
