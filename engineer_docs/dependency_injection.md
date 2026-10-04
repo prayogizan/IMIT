@@ -96,7 +96,8 @@ val detailsViewModelModule = module {
             identifier = identifier,
             videoRepository = get(),
             downloadedVideoDao = get(),
-            downloadManagerHelper = get()
+            downloadManagerHelper = get(),
+            videoPlayerManager = get(),
         )
     }
 }
@@ -106,7 +107,7 @@ val detailsModule = module {
 }
 ```
 
-DetailViewModel receives `identifier: String` as first constructor parameter via `koinViewModel(parameters = { parametersOf(identifier) })`, resolving `VideoRepository`, `DownloadedVideoDao`, and `DownloadManagerHelper` from Koin.
+DetailViewModel receives `identifier: String` as first constructor parameter via `koinViewModel(parameters = { parametersOf(identifier) })`, resolving `VideoRepository`, `DownloadedVideoDao`, `DownloadManagerHelper`, and `VideoPlayerManager` from Koin.
 
 ### `downloadsModule` (`feature:downloads`)
 
@@ -217,6 +218,7 @@ graph TD
     DVM --> VR
     DVM --> DVD
     DVM --> DMH
+    DVM --> PM
     DMVM --> DVD
     DMVM --> DMH
     VDW --> DVD

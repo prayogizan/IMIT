@@ -8,6 +8,7 @@ import com.uncaan.imit.core.model.DownloadStatus
 import com.uncaan.imit.core.model.PlayableStream
 import com.uncaan.imit.core.model.VideoDetail
 import com.uncaan.imit.core.download.DownloadManagerHelper
+import com.uncaan.imit.core.player.VideoPlayerManager
 import androidx.work.Data
 import androidx.work.WorkInfo
 import com.uncaan.imit.core.download.VideoDownloadWorker
@@ -42,6 +43,7 @@ class DetailViewModelTest {
     private val videoRepository: VideoRepository = mockk()
     private val downloadedVideoDao: DownloadedVideoDao = mockk(relaxed = true)
     private val downloadManagerHelper: DownloadManagerHelper = mockk(relaxed = true)
+    private val videoPlayerManager: VideoPlayerManager = mockk(relaxed = true)
     private val workInfoFlow = MutableSharedFlow<WorkInfo?>(replay = 1)
 
     private val sampleStreamHd = PlayableStream(
@@ -114,7 +116,8 @@ class DetailViewModelTest {
             identifier = identifier,
             videoRepository = videoRepository,
             downloadedVideoDao = downloadedVideoDao,
-            downloadManagerHelper = downloadManagerHelper
+            downloadManagerHelper = downloadManagerHelper,
+            videoPlayerManager = videoPlayerManager,
         )
     }
 
@@ -742,6 +745,105 @@ class DetailViewModelTest {
             val state = awaitItem() as DetailUiState.Success
             assertEquals(DownloadStatus.PAUSED, state.downloadStatus)
             assertEquals(45, state.downloadProgress)
+        }
+    }
+    @Test
+    fun `ToggleBackgroundPlayback flips isBackgroundPlaybackEnabled in Success state`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertFalse(state.isBackgroundPlaybackEnabled)
+        }
+
+        viewModel.onEvent(DetailUiEvent.ToggleBackgroundPlayback)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertTrue(state.isBackgroundPlaybackEnabled)
+        }
+    }
+
+    @Test
+    fun `ToggleBackgroundPlayback twice returns to original disabled state`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.ToggleBackgroundPlayback)
+        advanceUntilIdle()
+        viewModel.onEvent(DetailUiEvent.ToggleBackgroundPlayback)
+        advanceUntilIdle()
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Success
+            assertFalse(state.isBackgroundPlaybackEnabled)
+        }
+    }
+
+    @Test
+    fun `OnNavigateAway pauses player when background playback is disabled`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.OnNavigateAway)
+        advanceUntilIdle()
+
+        verify { videoPlayerManager.pause() }
+    }
+
+    @Test
+    fun `OnNavigateAway does not pause player when background playback is enabled`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.success(sampleDetail)
+        )
+        coEvery { downloadedVideoDao.getDownloadedVideoByIdSync("mit-ocw-6.0001-lec01") } returns null
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.ToggleBackgroundPlayback)
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.OnNavigateAway)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { videoPlayerManager.pause() }
+    }
+
+    @Test
+    fun `OnNavigateAway is no-op when state is Error`() = runTest(testDispatcher) {
+        coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
+            Result.failure(IOException("Network error"))
+        )
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onEvent(DetailUiEvent.OnNavigateAway)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { videoPlayerManager.pause() }
+
+        viewModel.uiState.test {
+            val state = awaitItem() as DetailUiState.Error
+            assertEquals("Network error", state.message)
         }
     }
 }

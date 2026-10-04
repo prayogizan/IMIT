@@ -10,6 +10,7 @@ import com.uncaan.imit.core.download.DownloadManagerHelper
 import com.uncaan.imit.core.download.VideoDownloadWorker
 import com.uncaan.imit.core.model.DownloadStatus
 import com.uncaan.imit.core.model.PlayableStream
+import com.uncaan.imit.core.player.VideoPlayerManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
  * @param videoRepository Repository providing video metadata from network.
  * @param downloadedVideoDao Room DAO for tracking download state and local file paths.
  * @param downloadManagerHelper Helper managing background WorkManager download jobs and storage validation.
+ * @param videoPlayerManager Client facade for controlling playback via [com.uncaan.imit.core.player.VideoPlaybackService].
  * @see DetailUiState For the complete state hierarchy.
  * @see DetailUiEvent For supported user interactions.
  */
@@ -37,7 +39,8 @@ class DetailViewModel(
     private val identifier: String,
     private val videoRepository: VideoRepository,
     private val downloadedVideoDao: DownloadedVideoDao,
-    private val downloadManagerHelper: DownloadManagerHelper
+    private val downloadManagerHelper: DownloadManagerHelper,
+    private val videoPlayerManager: VideoPlayerManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
@@ -64,6 +67,8 @@ class DetailViewModel(
             is DetailUiEvent.ResumeDownload -> resumeDownload()
             is DetailUiEvent.RetryDownload -> retryDownload()
             is DetailUiEvent.CancelDownload -> cancelDownload()
+            is DetailUiEvent.ToggleBackgroundPlayback -> toggleBackgroundPlayback()
+            is DetailUiEvent.OnNavigateAway -> onNavigateAway()
         }
     }
 
@@ -292,5 +297,25 @@ class DetailViewModel(
     private fun dismissDownloadError() {
         val current = _uiState.value as? DetailUiState.Success ?: return
         _uiState.value = current.copy(downloadError = null)
+    }
+
+    private fun toggleBackgroundPlayback() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        _uiState.value = current.copy(
+            isBackgroundPlaybackEnabled = !current.isBackgroundPlaybackEnabled
+        )
+    }
+
+    /**
+     * Handles navigation away from the detail screen.
+     *
+     * When background playback is disabled (default), pauses the player.
+     * When enabled, playback continues via [VideoPlaybackService] in the background.
+     */
+    private fun onNavigateAway() {
+        val current = _uiState.value as? DetailUiState.Success ?: return
+        if (!current.isBackgroundPlaybackEnabled) {
+            videoPlayerManager.pause()
+        }
     }
 }
