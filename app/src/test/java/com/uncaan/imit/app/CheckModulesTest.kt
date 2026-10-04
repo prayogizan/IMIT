@@ -6,6 +6,7 @@ import com.uncaan.imit.core.database.dao.DownloadedVideoDao
 import com.uncaan.imit.core.database.dao.VideoCacheDao
 import com.uncaan.imit.core.download.DownloadManagerHelper
 import com.uncaan.imit.core.network.api.ArchiveApiService
+import com.uncaan.imit.core.player.VideoPlayerManager
 import com.uncaan.imit.core.network.di.dataModule
 import com.uncaan.imit.core.network.di.networkModule
 import com.uncaan.imit.core.player.di.playerModule
@@ -55,6 +56,7 @@ class CheckModulesTest : KoinTest {
                 VideoRepository::class,
                 DownloadedVideoDao::class,
                 DownloadManagerHelper::class,
+                VideoPlayerManager::class,
                 String::class
             )
         )
