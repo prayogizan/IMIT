@@ -61,6 +61,8 @@ flowchart LR
 | `ResumeDownload` | `resumeDownload()` | Calls `DownloadManagerHelper.resumeDownload(...)` with `ExistingWorkPolicy.REPLACE` → triggers `observeDownloadProgress(identifier)` → `Success(downloadStatus=PENDING)` |
 | `RetryDownload` | `retryDownload()` | Re-enqueues work via `resumeDownload()` → `Success(downloadStatus=PENDING)` |
 | `CancelDownload` | `cancelDownload()` | Cancels observation, deletes `.tmp`/final files via `DownloadManagerHelper.cancelDownload(...)`, deletes Room entity via `deleteById(...)` → `Success(downloadStatus=null, downloadProgress=0, downloadError=null)` |
+| `ToggleBackgroundPlayback` | `toggleBackgroundPlayback()` | `Success(isBackgroundPlaybackEnabled = !current)` |
+| `OnNavigateAway` | `onNavigateAway()` | If `!isBackgroundPlaybackEnabled` -> pauses player; if enabled -> continues playing in background |
 
 ### Detail WorkManager Progress Observation Flow
 
@@ -112,6 +114,64 @@ flowchart TD
     G --> H
     H --> I
     H --> J
+```
+
+## Media Playback & Background Service Data Flow
+
+### Media3 Client-Service Playback Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Screen as DetailScreen
+    participant VM as DetailViewModel
+    participant VPM as VideoPlayerManager
+    participant MC as MediaController
+    participant VPS as VideoPlaybackService
+    participant Exo as ExoPlayer
+    participant MS as MediaSession
+    participant Notif as IMITMediaNotificationProvider
+    participant SysUI as Android System UI Notification
+
+    User->>Screen: Tap Play / Quality Chip
+    Screen->>VM: onEvent(DetailUiEvent.StreamVideo)
+    VM->>VPM: playVideo(uri, title, subtitle, artworkUri)
+    VPM->>MC: getController() (bind via SessionToken)
+    MC->>VPS: onGetSession()
+    VPS-->>MC: return MediaSession
+    VPM->>MC: setMediaItem(item) & prepare() & play()
+    MC->>Exo: setMediaItem() & play()
+    Exo->>MS: stateChanged(STATE_READY, playWhenReady=true)
+    MS->>Notif: onNotificationRequired()
+    Notif->>SysUI: postNotification(id=2001, MediaStyle)
+```
+
+### Audio Focus Handling Flow
+
+```mermaid
+flowchart TD
+    A[Incoming Audio Focus Request / Loss] --> B{Focus Event}
+    B -->|AUDIOFOCUS_LOSS| C[ExoPlayer pauses playback]
+    B -->|AUDIOFOCUS_LOSS_TRANSIENT| D[ExoPlayer pauses temporarily]
+    B -->|AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK| E[ExoPlayer ducks volume to 0.2]
+    B -->|AUDIOFOCUS_GAIN| F[ExoPlayer resumes playback / restores volume]
+    B -->|ACTION_AUDIO_BECOMING_NOISY| G[Headset disconnected: pause playback immediately]
+```
+
+### Background Playback Lifecycle Flow
+
+```mermaid
+flowchart TD
+    A[User navigates away from DetailScreen] --> B{isBackgroundPlaybackEnabled?}
+    B -->|false (Default)| C[DetailViewModel calls videoPlayerManager.pause()]
+    C --> D[Playback stops, notification dismissible]
+    B -->|true| E[DetailViewModel leaves playback running]
+    E --> F[VideoPlaybackService stays alive as foreground service]
+    F --> G[Notification displays active playback + chronometer]
+    G --> H{Task removed from Recents?}
+    H -->|Playing| I[Service continues playing background audio]
+    H -->|Paused / Idle| J[Service invokes stopSelf() and releases player]
 ```
 
 

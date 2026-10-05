@@ -9,7 +9,7 @@
 | `:core:network` | Android Library | `com.uncaan.imit.core.network` | Retrofit API, DTOs, mappers, repository |
 | `:core:database` | Android Library | `com.uncaan.imit.core.database` | Room DB, entities, DAOs, converters |
 | `:core:designsystem` | Android Library | `com.uncaan.imit.core.designsystem` | Theme, components, design tokens |
-| `:core:player` | Android Library | `com.uncaan.imit.core.player` | Media3 ExoPlayer wrapper |
+| `:core:player` | Android Library | `com.uncaan.imit.core.player` | Media3 MediaSessionService and client facade for background video/audio playback |
 | `:core:download` | Android Library | `com.uncaan.imit.core.download` | Download management (WIP) |
 | `:feature:catalog` | Android Library | `com.uncaan.imit.feature.catalog` | Video catalog listing + search |
 | `:feature:details` | Android Library | `com.uncaan.imit.feature.details` | Video detail + stream selection |
@@ -188,7 +188,7 @@ com.uncaan.imit.core.designsystem
 
 ## `:core:player` — Media Player
 
-ExoPlayer wrapper for video playback.
+Client facade and background `MediaSessionService` for video and audio playback.
 
 ### File Inventory
 
@@ -285,10 +285,10 @@ Detail screen with video metadata, quality selection, streaming, and download in
 
 | File | Responsibility |
 |------|---------------|
-| `DetailUiState.kt` | `Loading`, `Success` (detail, selectedStream, downloadStatus, progress, description expanded), `Error` |
-| `DetailUiEvent.kt` | `SelectQuality`, `StreamVideo`, `DownloadVideo`, `ToggleDescription`, `Retry`, `DismissDownloadError`, `PauseDownload`, `ResumeDownload`, `RetryDownload`, `CancelDownload` |
-| `DetailViewModel.kt` | Loads video detail, manages quality selection, initiates downloads, handles pause/resume/retry/cancel, navigates to player |
-| `DetailScreen.kt` | Thumbnail with scrim overlay, play button, quality chips (`FlowRow` + `FilterChip`), download lifecycle controls (Download/Pause/Resume/Retry/Play, Cancel), download progress card, expandable description |
+| `DetailUiState.kt` | `Loading`, `Success` (detail, selectedStream, downloadStatus, progress, isBackgroundPlaybackEnabled, description expanded), `Error` |
+| `DetailUiEvent.kt` | `SelectQuality`, `StreamVideo`, `DownloadVideo`, `ToggleDescription`, `Retry`, `DismissDownloadError`, `PauseDownload`, `ResumeDownload`, `RetryDownload`, `CancelDownload`, `ToggleBackgroundPlayback`, `OnNavigateAway` |
+| `DetailViewModel.kt` | Loads video detail, manages quality selection, initiates downloads, handles pause/resume/retry/cancel, toggles background playback, pauses on navigate-away when disabled, navigates to player |
+| `DetailScreen.kt` | Thumbnail with scrim overlay, play button, quality chips (`FlowRow` + `FilterChip`), background playback toggle, download lifecycle controls (Download/Pause/Resume/Retry/Play, Cancel), download progress card, expandable description |
 | `di/DetailsModule.kt` | ViewModel module with `parametersOf(identifier)` for assisted injection |
 | `di/DetailsViewModelModule.kt` | Additional ViewModel bindings |
 
@@ -297,6 +297,7 @@ Detail screen with video metadata, quality selection, streaming, and download in
 - ViewModel receives `identifier` as constructor parameter (Koin `parametersOf`)
 - Player navigation via `navigateToPlayer: StateFlow<String?>` + `onPlayerNavigated()` reset
 - Quality selection: `FilterChip` with `FlowRow`, auto-selects `bestStream` (highest resolution)
+- Background Playback: toggleable via `ToggleBackgroundPlayback`; when enabled, audio continues in background via `VideoPlaybackService` on `OnNavigateAway`; when disabled (default), navigating away invokes `pause()` on `VideoPlayerManager`.
 - Download Controls: prompts runtime permission for `POST_NOTIFICATIONS` on Android 13+ (API 33+) before scheduling background work; inserts `DownloadedVideoEntity` with `PENDING` status, schedules background work via `DownloadManagerHelper`, and reactively observes `getWorkInfoFlow` progress (0..100%) and state transitions. Maps `CANCELLED` WorkInfo state to `DownloadStatus.PAUSED`. Provides contextual UI action buttons (Download, Pause, Resume, Retry, Play) and a Cancel button in the progress card.
 - Plays local file if download `COMPLETED`, otherwise streams remote URL; download button transforms to "Play Downloaded Video" upon completion
 - Description: expandable with `animateContentSize()`, 4-line clamp
