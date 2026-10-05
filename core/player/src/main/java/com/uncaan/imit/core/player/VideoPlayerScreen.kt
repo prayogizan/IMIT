@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,7 @@ import androidx.media3.ui.PlayerView
  * @param title Optional title of the video for system metadata display. Defaults to empty.
  * @param subtitle Optional subtitle, instructor, or course name. Defaults to empty.
  * @param artworkUri Optional URI pointing to video artwork or thumbnail. Defaults to null.
+ * @param isBackgroundPlaybackEnabled Whether audio playback continues in background service when leaving screen. Defaults to false.
  */
 @Composable
 fun VideoPlayerScreen(
@@ -58,14 +60,24 @@ fun VideoPlayerScreen(
     modifier: Modifier = Modifier,
     title: String = "",
     subtitle: String = "",
-    artworkUri: String? = null
+    artworkUri: String? = null,
+    isBackgroundPlaybackEnabled: Boolean = false
 ) {
     val context = LocalContext.current
     val isInspectionMode = LocalInspectionMode.current
     val isPipSupported = remember(context) { PipHelper.isPipSupported(context) }
     var controller by remember { mutableStateOf<MediaController?>(null) }
+    val currentIsBackgroundPlaybackEnabled by rememberUpdatedState(isBackgroundPlaybackEnabled)
 
     if (!isInspectionMode) {
+        DisposableEffect(Unit) {
+            onDispose {
+                if (!currentIsBackgroundPlaybackEnabled) {
+                    playerManager.pause()
+                }
+            }
+        }
+
         LaunchedEffect(Unit) {
             controller = playerManager.getController()
         }

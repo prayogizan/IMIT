@@ -134,7 +134,7 @@ class VideoPlaybackService : MediaSessionService() {
      * Handles task removal from Android recents.
      *
      * Self-stops the service if playback is not currently active, the media playlist is empty,
-     * or playback has completed. If actively playing, the service stays alive for background audio.
+     * or the player is idle or ended. If actively playing, the service stays alive for background audio.
      *
      * @param rootIntent The intent that launched the removed task.
      */
@@ -143,7 +143,8 @@ class VideoPlaybackService : MediaSessionService() {
         if (currentPlayer == null ||
             !currentPlayer.playWhenReady ||
             currentPlayer.mediaItemCount == 0 ||
-            currentPlayer.playbackState == Player.STATE_ENDED
+            currentPlayer.playbackState == Player.STATE_ENDED ||
+            currentPlayer.playbackState == Player.STATE_IDLE
         ) {
             stopSelf()
         }
