@@ -748,7 +748,7 @@ class DetailViewModelTest {
         }
     }
     @Test
-    fun `ToggleBackgroundPlayback flips isBackgroundPlaybackEnabled in Success state`() = runTest(testDispatcher) {
+    fun `onEvent should toggle isBackgroundPlaybackEnabled when ToggleBackgroundPlayback in Success state`() = runTest(testDispatcher) {
         coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
             Result.success(sampleDetail)
         )
@@ -772,7 +772,7 @@ class DetailViewModelTest {
     }
 
     @Test
-    fun `ToggleBackgroundPlayback twice returns to original disabled state`() = runTest(testDispatcher) {
+    fun `onEvent should return to original disabled state when ToggleBackgroundPlayback dispatched twice`() = runTest(testDispatcher) {
         coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
             Result.success(sampleDetail)
         )
@@ -793,7 +793,7 @@ class DetailViewModelTest {
     }
 
     @Test
-    fun `OnNavigateAway pauses player when background playback is disabled`() = runTest(testDispatcher) {
+    fun `onEvent should pause player when OnNavigateAway and background playback is disabled`() = runTest(testDispatcher) {
         coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
             Result.success(sampleDetail)
         )
@@ -809,7 +809,7 @@ class DetailViewModelTest {
     }
 
     @Test
-    fun `OnNavigateAway does not pause player when background playback is enabled`() = runTest(testDispatcher) {
+    fun `onEvent should not pause player when OnNavigateAway and background playback is enabled`() = runTest(testDispatcher) {
         coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
             Result.success(sampleDetail)
         )
@@ -828,7 +828,7 @@ class DetailViewModelTest {
     }
 
     @Test
-    fun `OnNavigateAway is no-op when state is Error`() = runTest(testDispatcher) {
+    fun `onEvent should be no-op for player pause when OnNavigateAway and state is Error`() = runTest(testDispatcher) {
         coEvery { videoRepository.getVideoDetail("mit-ocw-6.0001-lec01") } returns flowOf(
             Result.failure(IOException("Network error"))
         )

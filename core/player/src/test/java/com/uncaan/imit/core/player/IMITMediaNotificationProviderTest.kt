@@ -33,7 +33,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `notification ID is 2001 and constants match specifications`() {
+    fun `constants should match required notification specifications when checked`() {
         assertEquals(2001, IMITMediaNotificationProvider.NOTIFICATION_ID)
         assertEquals("com.uncaan.imit.SKIP_BACK_10", IMITMediaNotificationProvider.ACTION_SKIP_BACK)
         assertEquals("com.uncaan.imit.SKIP_FORWARD_10", IMITMediaNotificationProvider.ACTION_SKIP_FORWARD)
@@ -41,7 +41,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with ACTION_SKIP_BACK seeks back 10 seconds`() {
+    fun `handleCustomCommand should seek back 10 seconds when action is ACTION_SKIP_BACK`() {
         every { mockPlayer.currentPosition } returns 25_000L
 
         val result = provider.handleCustomCommand(
@@ -55,7 +55,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with ACTION_SKIP_BACK bounds seek target at zero`() {
+    fun `handleCustomCommand should bound seek target at zero when action is ACTION_SKIP_BACK and near start`() {
         every { mockPlayer.currentPosition } returns 4_000L
 
         val result = provider.handleCustomCommand(
@@ -69,7 +69,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with ACTION_SKIP_FORWARD seeks forward 10 seconds`() {
+    fun `handleCustomCommand should seek forward 10 seconds when action is ACTION_SKIP_FORWARD`() {
         every { mockPlayer.currentPosition } returns 20_000L
         every { mockPlayer.duration } returns 120_000L
 
@@ -84,7 +84,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with ACTION_SKIP_FORWARD bounds seek target at duration`() {
+    fun `handleCustomCommand should bound seek target at duration when action is ACTION_SKIP_FORWARD and near end`() {
         every { mockPlayer.currentPosition } returns 115_000L
         every { mockPlayer.duration } returns 120_000L
 
@@ -99,7 +99,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with ACTION_SKIP_FORWARD handles unknown duration gracefully`() {
+    fun `handleCustomCommand should seek forward 10 seconds when action is ACTION_SKIP_FORWARD and duration is unknown`() {
         every { mockPlayer.currentPosition } returns 10_000L
         every { mockPlayer.duration } returns -1L
 
@@ -114,7 +114,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `handleCustomCommand with unrecognized action returns false`() {
+    fun `handleCustomCommand should return false and not seek when action is unrecognized`() {
         val result = provider.handleCustomCommand(
             session = mockSession,
             action = "unrecognized_custom_action",
@@ -126,7 +126,7 @@ class IMITMediaNotificationProviderTest {
     }
 
     @Test
-    fun `getNotificationChannelInfo returns configured channel id and name`() {
+    fun `getNotificationChannelInfo should return configured channel id and name when accessed`() {
         val channelInfo = provider.notificationChannelInfo
         assertEquals(MediaNotificationChannelHelper.CHANNEL_ID, channelInfo.id)
         assertEquals(MediaNotificationChannelHelper.CHANNEL_NAME, channelInfo.name)
