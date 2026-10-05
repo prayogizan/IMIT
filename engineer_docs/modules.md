@@ -25,6 +25,7 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 
 | File | Purpose |
 |------|---------|
+| `AndroidManifest.xml` | Declares application metadata, `MainActivity` configuration change flags (`screenSize`, `orientation`), WorkManager initializer override, and runtime permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`). |
 | `IMITApplication.kt` | `Application` subclass. Initializes Koin and implements `SingletonImageLoader.Factory` (15% RAM max, 50MB disk). |
 | `baseline-prof.txt` | Baseline profile rules for Ahead-of-Time (AOT) compilation (<1.5s cold start). |
 | `MainActivity.kt` | Single Activity. Sets `MitOcwTheme` and renders `MitOcwApp`. |
@@ -200,7 +201,8 @@ ExoPlayer wrapper for video playback.
 | `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`. |
 | `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and custom 10s skip commands for external/System UI controllers. |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
-| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL and metadata changes, surface detachment on disposal without stopping background playback, and PiP / top bar controls. |
+| `PlaybackServiceHelper.kt` | Helper utility and top-level `shouldUseBackgroundService()` providing API level check (API 26+) for foreground service gating and pre-Oreo fallback. |
+| `VideoPlayerScreen.kt` | Compose screen wrapping `PlayerView` via `AndroidView`. Handles `LaunchedEffect` for URL and metadata changes, `DisposableEffect` for pause on exit when background playback is disabled, surface detachment on disposal without stopping ongoing background playback, and PiP / top bar controls. |
 | `di/PlayerModule.kt` | Koin module providing `VideoPlayerManager` singleton client facade. |
 
 ### Player Features
