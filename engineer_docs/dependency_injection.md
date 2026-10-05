@@ -65,7 +65,10 @@ Interface binding: `single<VideoRepository> { VideoRepositoryImpl(...) }`
 |-------|------|---------|
 | `single` | `VideoPlayerManager` | `VideoPlayerManager(androidContext())` |
 
-> **Note:** `VideoPlaybackService` lifecycle is managed by the Android operating system as a `MediaSessionService`. `VideoPlayerManager` acts as the singleton client facade injecting `androidContext()` to connect via `SessionToken`.
+> **Architectural Contract:**
+> - `VideoPlaybackService` is an Android `androidx.media3.session.MediaSessionService` whose lifecycle is instantiated and managed by the Android operating system when a client binds via `SessionToken`. It hosts the `ExoPlayer` and `MediaSession` instances.
+> - `VideoPlayerManager` acts as the singleton client facade injected with `androidContext()`. It lazily establishes an asynchronous connection to `VideoPlaybackService` via `MediaController` and `SessionToken`.
+> - Neither `ExoPlayer` nor `MediaSession` is registered in Koin, preserving strict decoupling and preventing memory leaks while allowing background audio to persist across Activity lifecycle changes.
 
 ### `downloadModule` (`core:download`)
 
