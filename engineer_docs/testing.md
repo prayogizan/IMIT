@@ -40,8 +40,12 @@ module/
 | | `RateLimitInterceptorTest.kt` | Rate limiting |
 | | `DataModuleTest.kt` | Koin module verification |
 | `core:player` | `PipHelperTest.kt` | Picture-in-Picture mode configuration |
+| | `PlaybackServiceHelperTest.kt` | Foreground service gating check (API 26+) |
+| | `MediaNotificationChannelHelperTest.kt` | Notification channel configuration & Oreo registration |
+| | `IMITMediaNotificationProviderTest.kt` | Media notification provider, action constants, and 10s skip commands |
 | | `IMITMediaSessionCallbackTest.kt` | MediaSession transport commands and connection authorization |
-| | `VideoPlayerManagerTest.kt` | Player lifecycle, MediaSession binding, and MediaMetadata building |
+| | `VideoPlaybackServiceTest.kt` | Background MediaSessionService lifecycle, audio attributes, load control buffer, and task removal stopping policies |
+| | `VideoPlayerManagerTest.kt` | VideoPlayerManager client facade, MediaController connection, transport controls, and MediaMetadata building |
 | | `PlayerModuleTest.kt` | Koin module verification |
 | `core:database` | `DatabaseConvertersTest.kt` | DownloadStatus conversion |
 | | `DatabaseMappersTest.kt` | Entity ↔ Domain mapping |
@@ -49,7 +53,7 @@ module/
 | | `DownloadedVideoDaoTest.kt` | Room DAO operations, reactive Flow & status updates |
 | `core:designsystem` | `ThemeTokensTest.kt` | Theme token validation |
 | `feature:catalog` | `CatalogViewModelTest.kt` | Full ViewModel test suite |
-| `feature:details` | `DetailViewModelTest.kt` | Video details & download initiation tests |
+| `feature:details` | `DetailViewModelTest.kt` | Video details, quality selection, background playback toggle, navigate-away pause, and download lifecycle controls |
 | `app` | `CheckModulesTest.kt` | Koin 4 verify() dependency graph validation |
 | | `KoinSetupTest.kt` | Full DI module initialization validation |
 
