@@ -64,7 +64,8 @@ class VideoPlaybackServiceTest {
 
         val shouldStopCase1 = !mockPlayer.playWhenReady ||
             mockPlayer.mediaItemCount == 0 ||
-            mockPlayer.playbackState == Player.STATE_ENDED
+            mockPlayer.playbackState == Player.STATE_ENDED ||
+            mockPlayer.playbackState == Player.STATE_IDLE
         assertTrue(shouldStopCase1)
 
         // Case 2: empty playlist
@@ -74,7 +75,8 @@ class VideoPlaybackServiceTest {
 
         val shouldStopCase2 = !mockPlayer.playWhenReady ||
             mockPlayer.mediaItemCount == 0 ||
-            mockPlayer.playbackState == Player.STATE_ENDED
+            mockPlayer.playbackState == Player.STATE_ENDED ||
+            mockPlayer.playbackState == Player.STATE_IDLE
         assertTrue(shouldStopCase2)
 
         // Case 3: playback ended
@@ -84,18 +86,31 @@ class VideoPlaybackServiceTest {
 
         val shouldStopCase3 = !mockPlayer.playWhenReady ||
             mockPlayer.mediaItemCount == 0 ||
-            mockPlayer.playbackState == Player.STATE_ENDED
+            mockPlayer.playbackState == Player.STATE_ENDED ||
+            mockPlayer.playbackState == Player.STATE_IDLE
         assertTrue(shouldStopCase3)
 
-        // Case 4: actively playing in background - should NOT stop
+        // Case 4: player idle
+        every { mockPlayer.playWhenReady } returns true
+        every { mockPlayer.mediaItemCount } returns 1
+        every { mockPlayer.playbackState } returns Player.STATE_IDLE
+
+        val shouldStopCase4 = !mockPlayer.playWhenReady ||
+            mockPlayer.mediaItemCount == 0 ||
+            mockPlayer.playbackState == Player.STATE_ENDED ||
+            mockPlayer.playbackState == Player.STATE_IDLE
+        assertTrue(shouldStopCase4)
+
+        // Case 5: actively playing in background - should NOT stop
         every { mockPlayer.playWhenReady } returns true
         every { mockPlayer.mediaItemCount } returns 1
         every { mockPlayer.playbackState } returns Player.STATE_READY
 
-        val shouldStopCase4 = !mockPlayer.playWhenReady ||
+        val shouldStopCase5 = !mockPlayer.playWhenReady ||
             mockPlayer.mediaItemCount == 0 ||
-            mockPlayer.playbackState == Player.STATE_ENDED
-        org.junit.Assert.assertFalse(shouldStopCase4)
+            mockPlayer.playbackState == Player.STATE_ENDED ||
+            mockPlayer.playbackState == Player.STATE_IDLE
+        org.junit.Assert.assertFalse(shouldStopCase5)
     }
 
     @Test
