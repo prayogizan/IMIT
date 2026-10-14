@@ -7,6 +7,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import androidx.navigation.navDeepLink
 import com.uncaan.imit.core.player.VideoPlayerManager
 import com.uncaan.imit.core.player.VideoPlayerScreen
 import com.uncaan.imit.feature.catalog.CatalogScreen
@@ -15,6 +16,19 @@ import com.uncaan.imit.feature.downloads.DownloadsScreen
 import org.koin.compose.koinInject
 import java.net.URLDecoder
 
+/**
+ * Root navigation graph composable for the MIT OCW application.
+ *
+ * Configures the [NavHost] destinations, argument parsing, deep link URL handling,
+ * and navigation transitions between Catalog, Details, Downloads, and Player screens.
+ *
+ * Registered deep links:
+ * - Details: `imit://app/details/{identifier}`
+ * - Downloads: `imit://app/downloads`
+ *
+ * @param navController Controller managing app navigation state and back stack.
+ * @param modifier Optional [Modifier] applied to the host layout.
+ */
 @Composable
 fun MitOcwNavGraph(
     navController: NavHostController,
@@ -35,19 +49,33 @@ fun MitOcwNavGraph(
 
         composable(
             route = NavRoutes.DETAILS,
-            arguments = listOf(navArgument("identifier") { type = NavType.StringType })
+            arguments = listOf(navArgument("identifier") { type = NavType.StringType }),
+            deepLinks = listOf(
+                navDeepLink { uriPattern = NavRoutes.DETAILS_DEEP_LINK_PATTERN }
+            )
         ) { backStackEntry ->
             val identifier = backStackEntry.arguments?.getString("identifier").orEmpty()
             DetailScreen(
                 identifier = identifier,
-                onBackClick = { navController.popBackStack() },
+                onBackClick = {
+                    if (!navController.popBackStack()) {
+                        navController.navigate(NavRoutes.CATALOG) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                },
                 onPlayVideo = { videoUrl ->
                     navController.navigate(NavRoutes.playerRoute(videoUrl))
                 }
             )
         }
 
-        composable(NavRoutes.DOWNLOADS) {
+        composable(
+            route = NavRoutes.DOWNLOADS,
+            deepLinks = listOf(
+                navDeepLink { uriPattern = NavRoutes.DOWNLOADS_DEEP_LINK_PATTERN }
+            )
+        ) {
             DownloadsScreen(
                 onPlayVideo = { videoUrl ->
                     navController.navigate(NavRoutes.playerRoute(videoUrl))
