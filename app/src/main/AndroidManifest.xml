@@ -23,6 +23,7 @@
             android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:exported="true"
             android:label="@string/app_name"
+            android:launchMode="singleTop"
             android:supportsPictureInPicture="true"
             android:theme="@style/Theme.IMIT"
             android:windowSoftInputMode="adjustResize">
@@ -30,6 +31,18 @@
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Deep link intent-filter for imit://app/... scheme -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="imit"
+                    android:host="app" />
             </intent-filter>
         </activity>
 

@@ -25,14 +25,15 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 
 | File | Purpose |
 |------|---------|
-| `AndroidManifest.xml` | Declares application metadata, `MainActivity` configuration change flags (`screenSize`, `orientation`), WorkManager initializer override, and runtime permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`). |
+| `AndroidManifest.xml` | Declares application metadata, `MainActivity` configuration change flags (`screenSize`, `orientation`), `launchMode="singleTop"`, deep link intent-filter (`imit://app/...`), WorkManager initializer override, and runtime permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`). |
 | `IMITApplication.kt` | `Application` subclass. Initializes Koin and implements `SingletonImageLoader.Factory` (15% RAM max, 50MB disk). |
 | `baseline-prof.txt` | Baseline profile rules for Ahead-of-Time (AOT) compilation (<1.5s cold start). |
-| `MainActivity.kt` | Single Activity. Sets `MitOcwTheme` and renders `MitOcwApp`. |
-| `navigation/NavRoutes.kt` | Route constants and parameterized route builders. |
-| `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations. |
+| `MainActivity.kt` | Single Activity (`launchMode="singleTop"`). Sets `MitOcwTheme`, renders `MitOcwApp`, and delegates warm-start incoming intents to `navController.handleDeepLink(intent)` via `onNewIntent`. |
+| `navigation/NavRoutes.kt` | Route constants, deep link URI templates (`imit://app/...`), and parameterized route builders. |
+| `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations and registered `navDeepLink` patterns for `details/{identifier}` and `downloads`. |
 | `navigation/BottomNavBar.kt` | `NavigationBar` with `BottomNavItem` sealed class. |
-| `ui/MitOcwApp.kt` | Root composable. `Scaffold` + bottom bar + `NavGraph`. |
+| `navigation/DeepLinkHelper.kt` | Factory for `Intent` and `PendingIntent` deep links using `TaskStackBuilder` to synthesize parent back stack returning to Catalog. |
+| `ui/MitOcwApp.kt` | Root composable. `Scaffold` + bottom bar + `NavGraph` with injected `NavHostController`. |
 | `ui/theme/` | App-level theme overrides (Color, Theme, Type). |
 
 ### Key Behaviors
@@ -40,6 +41,9 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 - `IMITApplication` registers 8 Koin modules in order: core first, then features
 - Bottom bar visible only on `catalog` and `downloads` routes
 - Navigation uses `popUpTo(startDestination)` + `saveState`/`restoreState` for tab persistence
+- Custom private deep link scheme `imit://app/...` maps to `details/{identifier}` and `downloads`
+- `DeepLinkHelper` synthesizes parent back stack with `TaskStackBuilder`, ensuring Back press from notifications returns to `catalog`
+- `MainActivity` processes new intents without activity re-creation via `onNewIntent(intent)`
 
 ---
 

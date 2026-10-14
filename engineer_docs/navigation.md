@@ -32,18 +32,27 @@ object NavRoutes {
     const val DOWNLOADS = "downloads"
     const val PLAYER = "player?url={videoUrl}"
 
+    const val DEEP_LINK_SCHEME = "imit"
+    const val DEEP_LINK_HOST = "app"
+    const val DEEP_LINK_BASE_URI = "$DEEP_LINK_SCHEME://$DEEP_LINK_HOST"
+
+    const val DETAILS_DEEP_LINK_PATTERN = "$DEEP_LINK_BASE_URI/details/{identifier}"
+    const val DOWNLOADS_DEEP_LINK_PATTERN = "$DEEP_LINK_BASE_URI/downloads"
+
     fun detailsRoute(identifier: String): String = "details/$identifier"
+    fun detailsDeepLinkUri(identifier: String): String = "$DEEP_LINK_BASE_URI/details/$identifier"
+    fun downloadsDeepLinkUri(): String = "$DEEP_LINK_BASE_URI/downloads"
     fun playerRoute(videoUrl: String): String =
         "player?url=${URLEncoder.encode(videoUrl, "UTF-8")}"
 }
 ```
 
-| Route | Pattern | Arguments | Description |
-|-------|---------|-----------|-------------|
-| Catalog | `catalog` | None | Start destination. Video grid. |
-| Details | `details/{identifier}` | `identifier: String` (path) | Video detail screen. |
-| Downloads | `downloads` | None | Downloaded videos. |
-| Player | `player?url={videoUrl}` | `videoUrl: String` (query, optional) | Video player. URL-encoded. |
+| Route | Pattern | Arguments | Description | Deep Link URI |
+|-------|---------|-----------|-------------|---------------|
+| Catalog | `catalog` | None | Start destination. Video grid. | - |
+| Details | `details/{identifier}` | `identifier: String` (path) | Video detail screen. | `imit://app/details/{identifier}` |
+| Downloads | `downloads` | None | Downloaded videos. | `imit://app/downloads` |
+| Player | `player?url={videoUrl}` | `videoUrl: String` (query, optional) | Video player. URL-encoded. | - |
 
 ## NavHost Configuration
 
@@ -56,9 +65,32 @@ NavHost(
     composable(NavRoutes.CATALOG) { /* CatalogScreen */ }
     composable(
         route = NavRoutes.DETAILS,
-        arguments = listOf(navArgument("identifier") { type = NavType.StringType })
-    ) { /* DetailScreen */ }
-    composable(NavRoutes.DOWNLOADS) { /* DownloadsScreen */ }
+        arguments = listOf(navArgument("identifier") { type = NavType.StringType }),
+        deepLinks = listOf(
+            navDeepLink { uriPattern = NavRoutes.DETAILS_DEEP_LINK_PATTERN }
+        )
+    ) { backStackEntry ->
+        val identifier = backStackEntry.arguments?.getString("identifier").orEmpty()
+        DetailScreen(
+            identifier = identifier,
+            onBackClick = {
+                if (!navController.popBackStack()) {
+                    navController.navigate(NavRoutes.CATALOG) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            },
+            onPlayVideo = { videoUrl ->
+                navController.navigate(NavRoutes.playerRoute(videoUrl))
+            }
+        )
+    }
+    composable(
+        route = NavRoutes.DOWNLOADS,
+        deepLinks = listOf(
+            navDeepLink { uriPattern = NavRoutes.DOWNLOADS_DEEP_LINK_PATTERN }
+        )
+    ) { /* DownloadsScreen */ }
     composable(
         route = NavRoutes.PLAYER,
         arguments = listOf(navArgument("videoUrl") {
@@ -68,6 +100,86 @@ NavHost(
     ) { /* VideoPlayerScreen */ }
 }
 ```
+
+## Deep Linking & Back Stack Synthesis
+
+### Architecture & Scheme Configuration
+
+IMIT registers a custom private URI scheme for internal and external navigation:
+- Scheme: `imit`
+- Host: `app`
+- Manifest Filter:
+  ```xml
+  <activity
+      android:name=".MainActivity"
+      android:launchMode="singleTop" ...>
+      <intent-filter>
+          <action android:name="android.intent.action.VIEW" />
+          <category android:name="android.intent.category.DEFAULT" />
+          <category android:name="android.intent.category.BROWSABLE" />
+          <data android:scheme="imit" android:host="app" />
+      </intent-filter>
+  </activity>
+  ```
+
+### SingleTop & onNewIntent Delegation
+
+`MainActivity` is configured with `android:launchMode="singleTop"` to prevent duplicate Activity instances when tapping notifications or repeated external links.
+Incoming intents in warm states are delegated to `NavController`:
+
+```kotlin
+override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    navController?.handleDeepLink(intent)
+}
+```
+
+### DeepLinkHelper & TaskStackBuilder
+
+For system notifications and background tasks, `DeepLinkHelper` synthesizes a full parent back stack using `TaskStackBuilder`:
+
+```kotlin
+object DeepLinkHelper {
+    const val REQUEST_CODE_DETAILS = 1001
+    const val REQUEST_CODE_DOWNLOADS = 1002
+
+    fun createDetailsPendingIntent(
+        context: Context,
+        identifier: String,
+        requestCode: Int = REQUEST_CODE_DETAILS
+    ): PendingIntent {
+        val intent = createDetailsIntent(context, identifier)
+        return TaskStackBuilder.create(context).run {
+            addNextIntentWithParentStack(intent)
+            getPendingIntent(
+                requestCode,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )!!
+        }
+    }
+
+    fun createDownloadsPendingIntent(
+        context: Context,
+        requestCode: Int = REQUEST_CODE_DOWNLOADS
+    ): PendingIntent {
+        val intent = createDownloadsIntent(context)
+        return TaskStackBuilder.create(context).run {
+            addNextIntentWithParentStack(intent)
+            getPendingIntent(
+                requestCode,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )!!
+        }
+    }
+}
+```
+
+### Parent Back Stack Guarantee
+
+1. **Cold Start via Deep Link:** Compose `NavHost` synthesizes `NavRoutes.CATALOG` as the root destination beneath the deep-linked screen.
+2. **Warm Start via `onNewIntent`:** `navController.handleDeepLink(intent)` preserves the parent hierarchy.
+3. **Back Navigation:** Pressing system Back or tapping top bar arrow from `DetailScreen` always returns the user to `CatalogScreen`. Fallback pop navigation (`if (!navController.popBackStack()) navigate(CATALOG)`) guarantees no user trap.
 
 ## URL Parameter Encoding
 
