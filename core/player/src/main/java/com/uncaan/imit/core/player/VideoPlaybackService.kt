@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -96,6 +97,10 @@ class VideoPlaybackService : MediaSessionService() {
                             retryCount = 0
                         }
                     }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        updateSessionActivity(mediaItem)
+                    }
                 })
             }
 
@@ -114,10 +119,50 @@ class VideoPlaybackService : MediaSessionService() {
             .setSessionCommand(skipForwardCommand)
             .build()
 
+        val initialSessionActivity = MediaSessionActivityHelper.createSessionActivityPendingIntent(this, null)
+
         mediaSession = MediaSession.Builder(this, player!!)
             .setCallback(IMITMediaSessionCallback())
+            .setSessionActivity(initialSessionActivity)
             .setCustomLayout(listOf(skipBackButton, skipForwardButton))
             .build()
+    }
+
+    /**
+     * Extracts active lecture identifier from [mediaItem] and binds a refreshed
+     * immutable deep link [android.app.PendingIntent] to [mediaSession].
+     *
+     * @param mediaItem The newly transitioned or active [MediaItem].
+     */
+    internal fun updateSessionActivity(mediaItem: MediaItem?) {
+        val identifier = extractIdentifier(mediaItem)
+        val pendingIntent = MediaSessionActivityHelper.createSessionActivityPendingIntent(this, identifier)
+        mediaSession?.setSessionActivity(pendingIntent)
+    }
+
+    /**
+     * Resolves unique lecture identifier by inspecting metadata extras first,
+     * falling back to [MediaItem.mediaId].
+     *
+     * @param mediaItem The active [MediaItem], or null.
+     * @return Extracted identifier string, or null if unresolvable.
+     */
+    internal fun extractIdentifier(mediaItem: MediaItem?): String? {
+        if (mediaItem == null) return null
+        val extraId = mediaItem.mediaMetadata.extras
+            ?.getString(MediaSessionActivityHelper.EXTRA_IDENTIFIER)
+            ?.takeIf { it.isNotBlank() }
+        if (extraId != null) return extraId
+
+        val mediaId = mediaItem.mediaId.takeIf { it.isNotBlank() } ?: return null
+        if (mediaId.startsWith("http://") || mediaId.startsWith("https://")) {
+            val archiveRegex = Regex("""archive\.org/(?:download|details)/([^/?#]+)""")
+            val match = archiveRegex.find(mediaId)
+            if (match != null) {
+                return match.groupValues[1]
+            }
+        }
+        return mediaId
     }
 
     /**

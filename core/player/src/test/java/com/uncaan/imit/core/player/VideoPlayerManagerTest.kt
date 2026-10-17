@@ -182,7 +182,8 @@ class VideoPlayerManagerTest {
             uri = "https://archive.org/download/test/stream.mp4",
             title = "Introduction to Computer Science",
             subtitle = "Prof. John Doe",
-            artworkUri = "https://archive.org/download/test/thumb.png"
+            artworkUri = "https://archive.org/download/test/thumb.png",
+            identifier = "ocw-6.001-lec01"
         )
 
         verify(exactly = 1) { mockController.setMediaItem(any()) }
@@ -190,9 +191,11 @@ class VideoPlayerManagerTest {
         verify(exactly = 1) { mockController.play() }
 
         val captured = mediaItemSlot.captured
+        assertEquals("ocw-6.001-lec01", captured.mediaId)
         assertEquals("Introduction to Computer Science", captured.mediaMetadata.title?.toString())
         assertEquals("Prof. John Doe", captured.mediaMetadata.artist?.toString())
         assertEquals(mockUri, captured.mediaMetadata.artworkUri)
+        assertNotNull(captured.mediaMetadata.extras)
     }
 
     @Test

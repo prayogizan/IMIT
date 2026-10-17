@@ -144,7 +144,28 @@ sequenceDiagram
     MC->>Exo: setMediaItem() & play()
     Exo->>MS: stateChanged(STATE_READY, playWhenReady=true)
     MS->>Notif: onNotificationRequired()
-    Notif->>SysUI: postNotification(id=2001, MediaStyle)
+    Notif->>SysUI: postNotification(id=2001, MediaStyle, contentIntent=sessionActivity)
+```
+
+### Media Notification Tap to Lecture Deep Link Restoration
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Learner
+    participant SysUI as System UI / Lock Screen
+    participant PI as sessionActivity PendingIntent
+    participant MA as MainActivity (singleTop)
+    participant Nav as MitOcwNavGraph
+    participant VPS as VideoPlaybackService
+
+    VPS->>SysUI: postNotification with contentIntent=sessionActivity (imit://app/details/{id})
+    Learner->>SysUI: Tap media notification banner
+    SysUI->>PI: send() PendingIntent (TaskStackBuilder)
+    PI->>MA: onNewIntent(intent) [launchMode=singleTop, no recreation]
+    MA->>Nav: navController.handleDeepLink(intent)
+    Nav->>Nav: Synthesize back stack: CatalogScreen -> DetailScreen(identifier)
+    Note over VPS: Background audio playback continues completely uninterrupted!
 ```
 
 ### Audio Focus Handling Flow
