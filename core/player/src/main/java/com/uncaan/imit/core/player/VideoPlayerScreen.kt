@@ -50,6 +50,7 @@ import androidx.media3.ui.PlayerView
  * @param title Optional title of the video for system metadata display. Defaults to empty.
  * @param subtitle Optional subtitle, instructor, or course name. Defaults to empty.
  * @param artworkUri Optional URI pointing to video artwork or thumbnail. Defaults to null.
+ * @param identifier Optional unique lecture identifier for deep link routing. Defaults to empty.
  * @param isBackgroundPlaybackEnabled Whether audio playback continues in background service when leaving screen. Defaults to false.
  */
 @Composable
@@ -61,6 +62,7 @@ fun VideoPlayerScreen(
     title: String = "",
     subtitle: String = "",
     artworkUri: String? = null,
+    identifier: String = "",
     isBackgroundPlaybackEnabled: Boolean = false
 ) {
     val context = LocalContext.current
@@ -82,13 +84,14 @@ fun VideoPlayerScreen(
             controller = playerManager.getController()
         }
 
-        LaunchedEffect(videoUrl, title, subtitle, artworkUri) {
+        LaunchedEffect(videoUrl, title, subtitle, artworkUri, identifier) {
             if (videoUrl.isNotBlank()) {
                 playerManager.playVideo(
                     uri = videoUrl,
                     title = title,
                     subtitle = subtitle,
-                    artworkUri = artworkUri
+                    artworkUri = artworkUri,
+                    identifier = identifier
                 )
             }
         }

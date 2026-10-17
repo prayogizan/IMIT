@@ -1,10 +1,14 @@
 package com.uncaan.imit.core.player
 
+import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
 import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -15,8 +19,10 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.spyk
+import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import org.junit.After
@@ -263,5 +269,117 @@ class VideoPlaybackServiceTest {
         verify(exactly = 1) { mockSession.release() }
         assertNull(sessionField.get(service))
         assertNull(playerField.get(service))
+    }
+
+    @Test
+    fun `extractIdentifier should return extras identifier when present in mediaMetadata`() {
+        val service = VideoPlaybackService()
+        val mockBundle = mockk<Bundle>()
+        every { mockBundle.getString(MediaSessionActivityHelper.EXTRA_IDENTIFIER) } returns "ocw-18.01-lec01"
+
+        val metadata = MediaMetadata.Builder()
+            .setExtras(mockBundle)
+            .build()
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("fallback-id")
+            .setMediaMetadata(metadata)
+            .build()
+
+        val extracted = service.extractIdentifier(mediaItem)
+        assertEquals("ocw-18.01-lec01", extracted)
+    }
+
+    @Test
+    fun `extractIdentifier should fallback to mediaId when extras is null or missing`() {
+        val service = VideoPlaybackService()
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("ocw-6.001-lec02")
+            .build()
+
+        val extracted = service.extractIdentifier(mediaItem)
+        assertEquals("ocw-6.001-lec02", extracted)
+    }
+
+    @Test
+    fun `extractIdentifier should parse identifier from archive org download url in mediaId`() {
+        val service = VideoPlaybackService()
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("https://archive.org/download/ocw-18.01-lec01/MIT18_01F06_lec01_300k.mp4")
+            .build()
+
+        val extracted = service.extractIdentifier(mediaItem)
+        assertEquals("ocw-18.01-lec01", extracted)
+    }
+
+    @Test
+    fun `extractIdentifier should parse identifier from archive org details url in mediaId`() {
+        val service = VideoPlaybackService()
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("https://archive.org/details/ocw-6.0001-lec03")
+            .build()
+
+        val extracted = service.extractIdentifier(mediaItem)
+        assertEquals("ocw-6.0001-lec03", extracted)
+    }
+
+    @Test
+    fun `extractIdentifier should return null when mediaItem is null`() {
+        val service = VideoPlaybackService()
+        assertNull(service.extractIdentifier(null))
+    }
+
+    @Test
+    fun `updateSessionActivity should configure mediaSession sessionActivity with generated PendingIntent`() {
+        val service = VideoPlaybackService()
+        val mockSession = mockk<MediaSession>(relaxed = true)
+        val mockPendingIntent = mockk<PendingIntent>()
+
+        val sessionField = VideoPlaybackService::class.java.getDeclaredField("mediaSession")
+        sessionField.isAccessible = true
+        sessionField.set(service, mockSession)
+
+        mockkObject(MediaSessionActivityHelper)
+        every {
+            MediaSessionActivityHelper.createSessionActivityPendingIntent(any(), "ocw-18.01-lec01", any())
+        } returns mockPendingIntent
+
+        val mediaItem = MediaItem.Builder()
+            .setMediaId("ocw-18.01-lec01")
+            .build()
+
+        service.updateSessionActivity(mediaItem)
+
+        verify(exactly = 1) { mockSession.setSessionActivity(mockPendingIntent) }
+        unmockkObject(MediaSessionActivityHelper)
+    }
+
+    @Test
+    fun `updateSessionActivity should refresh sessionActivity when media item transitions to new lecture`() {
+        val service = VideoPlaybackService()
+        val mockSession = mockk<MediaSession>(relaxed = true)
+        val mockPendingIntent1 = mockk<PendingIntent>()
+        val mockPendingIntent2 = mockk<PendingIntent>()
+
+        val sessionField = VideoPlaybackService::class.java.getDeclaredField("mediaSession")
+        sessionField.isAccessible = true
+        sessionField.set(service, mockSession)
+
+        mockkObject(MediaSessionActivityHelper)
+        every {
+            MediaSessionActivityHelper.createSessionActivityPendingIntent(any(), "lec-01", any())
+        } returns mockPendingIntent1
+        every {
+            MediaSessionActivityHelper.createSessionActivityPendingIntent(any(), "lec-02", any())
+        } returns mockPendingIntent2
+
+        val item1 = MediaItem.Builder().setMediaId("lec-01").build()
+        val item2 = MediaItem.Builder().setMediaId("lec-02").build()
+
+        service.updateSessionActivity(item1)
+        service.updateSessionActivity(item2)
+
+        verify(exactly = 1) { mockSession.setSessionActivity(mockPendingIntent1) }
+        verify(exactly = 1) { mockSession.setSessionActivity(mockPendingIntent2) }
+        unmockkObject(MediaSessionActivityHelper)
     }
 }

@@ -102,23 +102,32 @@ class VideoPlayerManager(private val context: Context) {
      * @param title Title of the video or lecture. Defaults to empty string.
      * @param subtitle Subtitle, artist, or course department name. Defaults to empty string.
      * @param artworkUri Optional URI string pointing to artwork or thumbnail image.
+     * @param identifier Optional unique lecture identifier for deep link routing. Defaults to empty string.
      */
     suspend fun playVideo(
         uri: String,
         title: String = "",
         subtitle: String = "",
-        artworkUri: String? = null
+        artworkUri: String? = null,
+        identifier: String = ""
     ) {
         val controller = getController()
+        val extras = android.os.Bundle().apply {
+            if (identifier.isNotBlank()) {
+                putString(MediaSessionActivityHelper.EXTRA_IDENTIFIER, identifier)
+            }
+        }
         val mediaMetadata = MediaMetadata.Builder()
             .setTitle(title.takeIf { it.isNotBlank() })
             .setArtist(subtitle.takeIf { it.isNotBlank() })
+            .setExtras(extras)
             .apply {
                 artworkUri?.takeIf { it.isNotBlank() }?.let { setArtworkUri(it.toUri()) }
             }
             .build()
 
         val mediaItem = MediaItem.Builder()
+            .setMediaId(identifier.ifBlank { uri })
             .setUri(uri.toUri())
             .setMediaMetadata(mediaMetadata)
             .build()
