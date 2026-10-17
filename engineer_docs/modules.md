@@ -201,8 +201,9 @@ Client facade and background `MediaSessionService` for video and audio playback.
 | `AndroidManifest.xml` | Declares foreground service permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`) and registers `VideoPlaybackService` with `foregroundServiceType="mediaPlayback"`. |
 | `MediaNotificationChannelHelper.kt` | Utility configuring and registering the low-importance `imit_media_playback` channel (`IMPORTANCE_LOW`, silent, no badge, public lockscreen visibility). |
 | `IMITMediaNotificationProvider.kt` | Custom `MediaNotification.Provider` configuring media notification appearance, metadata, artwork loading, ongoing/dismissible lifecycle, and 4 transport buttons (Skip Back 10s, Play/Pause, Skip Forward 10s, Stop) with dedicated `NOTIFICATION_ID = 2001`. |
-| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, and notification provider registration. |
-| `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`. |
+| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, notification provider registration, and dynamic `sessionActivity` deep link updates on media transitions. |
+| `MediaSessionActivityHelper.kt` | Utility constructing synthesized parent back stack [android.app.PendingIntent]s via [android.app.TaskStackBuilder] targeting `imit://app/details/{identifier}` with `FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE` for [androidx.media3.session.MediaSession.setSessionActivity]. |
+| `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`, attaching active lecture `identifier` to `mediaId` and metadata extras. |
 | `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and custom 10s skip commands for external/System UI controllers. |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
 | `PlaybackServiceHelper.kt` | Helper utility and top-level `shouldUseBackgroundService()` providing API level check (API 26+) for foreground service gating and pre-Oreo fallback. |
@@ -212,6 +213,7 @@ Client facade and background `MediaSessionService` for video and audio playback.
 ### Player Features
 
 - Background audio playback: persists across navigation, lock screen, and home actions via `VideoPlaybackService` (`MediaSessionService`) foreground service
+- MediaSession sessionActivity deep link binding: binds immutable `PendingIntent` for `imit://app/details/{identifier}` (reserved request code 2002) synthesized via `TaskStackBuilder`; dynamically refreshed on `onMediaItemTransition` so tapping the system notification drawer or lock screen banner returns directly to the active lecture without interrupting background playback
 - Notification channel: `imit_media_playback` registered with `IMPORTANCE_LOW` (silent, no vibration) and public lockscreen visibility
 - Media notification controls: `IMITMediaNotificationProvider` hosts Skip Back 10s (`ACTION_SKIP_BACK`), Play/Pause toggle, Skip Forward 10s (`ACTION_SKIP_FORWARD`), and Stop (`COMMAND_STOP`)
 - Compact notification view: 3 priority action indices (0: Skip Back, 1: Play/Pause, 2: Skip Forward) mapped via `MediaStyle.setShowActionsInCompactView`
