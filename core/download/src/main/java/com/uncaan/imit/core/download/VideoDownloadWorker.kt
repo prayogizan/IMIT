@@ -1,5 +1,6 @@
 package com.uncaan.imit.core.download
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -24,7 +25,7 @@ import kotlin.math.abs
  * Background worker responsible for streaming video files from remote URLs to local storage.
  *
  * Managed by WorkManager and injected via Koin. Provides:
- * - Low-importance foreground notification with continuous percentage progress.
+ * - Low-importance foreground notification with continuous percentage progress and deep-link navigation.
  * - Storage space guard verifying available disk space (>= 500MB) before downloading.
  * - Real-time progress updates persisted to Room database via [DownloadedVideoDao].
  * - HTTP byte-range resumption (`Range: bytes=<existingSize>-`) using temporary files (`.tmp`).
@@ -34,12 +35,14 @@ import kotlin.math.abs
  * @param workerParams WorkManager worker parameters.
  * @param okHttpClient HTTP client configured with timeouts and interceptors.
  * @param downloadDao DAO for tracking download progress and states in Room.
+ * @param downloadNavigator Navigator creating deep-link PendingIntents for notifications.
  */
 class VideoDownloadWorker(
     private val context: Context,
     workerParams: WorkerParameters,
     private val okHttpClient: OkHttpClient,
-    private val downloadDao: DownloadedVideoDao
+    private val downloadDao: DownloadedVideoDao,
+    private val downloadNavigator: DownloadNotificationNavigator
 ) : CoroutineWorker(context, workerParams) {
 
     companion object {
@@ -103,6 +106,11 @@ class VideoDownloadWorker(
     internal val notificationId: Int
         get() = getNotificationId(inputData.getString(KEY_IDENTIFIER))
 
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        val title = inputData.getString(KEY_TITLE) ?: "Downloading video..."
+        return createForegroundInfo(title, 0)
+    }
+
     override suspend fun doWork(): Result {
         val identifier = inputData.getString(KEY_IDENTIFIER) ?: return Result.failure()
         val downloadUrl = inputData.getString(KEY_DOWNLOAD_URL) ?: return Result.failure()
@@ -119,8 +127,10 @@ class VideoDownloadWorker(
         }
 
         if (!hasEnoughStorage(targetDir)) {
+            val errorMsg = "Insufficient storage space (<500MB)"
             downloadDao.updateStatus(identifier, DownloadStatus.FAILED)
-            return Result.failure(workDataOf(KEY_ERROR to "Insufficient storage space (<500MB)"))
+            showFailureNotification(title, identifier, errorMsg)
+            return Result.failure(workDataOf(KEY_ERROR to errorMsg))
         }
 
         val outputFile = File(targetDir, fileName)
@@ -146,7 +156,9 @@ class VideoDownloadWorker(
                     partialFile.delete()
                 }
                 downloadDao.updateStatus(identifier, DownloadStatus.FAILED)
-                return Result.failure(workDataOf(KEY_ERROR to "HTTP error: ${response.code}"))
+                val errorMsg = "HTTP error: ${response.code}"
+                showFailureNotification(title, identifier, errorMsg)
+                return Result.failure(workDataOf(KEY_ERROR to errorMsg))
             }
 
             val isPartial = response.code == 206
@@ -222,7 +234,7 @@ class VideoDownloadWorker(
                 status = DownloadStatus.COMPLETED,
                 downloadedAt = System.currentTimeMillis()
             )
-            showCompletionNotification(title)
+            showCompletionNotification(title, identifier)
             Result.success(workDataOf(KEY_PROGRESS to 100))
         } catch (e: CancellationException) {
             currentProgress = if (totalBytes > 0) {
@@ -237,7 +249,9 @@ class VideoDownloadWorker(
                 partialFile.delete()
             }
             downloadDao.updateStatus(identifier, DownloadStatus.FAILED)
-            Result.failure(workDataOf(KEY_ERROR to (e.localizedMessage ?: "Download failed")))
+            val errorMsg = e.localizedMessage ?: "Download failed"
+            showFailureNotification(title, identifier, errorMsg)
+            Result.failure(workDataOf(KEY_ERROR to errorMsg))
         }
     }
 
@@ -272,22 +286,49 @@ class VideoDownloadWorker(
     }
 
     /**
-     * Builds foreground service notification with progress bar and ongoing status.
+     * Factory used to construct [Notification] instances from [NotificationCompat.Builder].
+     * Can be replaced in unit tests to avoid android.jar mockable stubs throwing in pure JVM tests.
+     */
+    internal var notificationFactory: (NotificationCompat.Builder) -> Notification = { it.build() }
+
+    /**
+     * Builds foreground service notification builder with progress bar, ongoing status, and downloads screen deep link.
      *
      * @param title Title displayed on the notification.
      * @param progress Progress percentage (0..100).
-     * @return [ForegroundInfo] configured with dataSync foreground type on Android Q+.
+     * @return [NotificationCompat.Builder] configured with ongoing status and navigation pending intent.
      */
-    private fun createForegroundInfo(title: String, progress: Int): ForegroundInfo {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+    internal fun createForegroundNotificationBuilder(title: String, progress: Int): NotificationCompat.Builder {
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title)
             .setContentText("Downloading: $progress%")
             .setProgress(100, progress, false)
             .setOngoing(true)
             .setSilent(true)
-            .build()
+            .setContentIntent(downloadNavigator.createDownloadsPendingIntent(context))
+    }
 
+    /**
+     * Builds foreground service notification with progress bar, ongoing status, and downloads screen deep link.
+     *
+     * @param title Title displayed on the notification.
+     * @param progress Progress percentage (0..100).
+     * @return [Notification] configured with ongoing status and navigation pending intent.
+     */
+    internal fun createForegroundNotification(title: String, progress: Int): Notification {
+        return notificationFactory(createForegroundNotificationBuilder(title, progress))
+    }
+
+    /**
+     * Builds foreground service info with progress notification and dataSync foreground type on Android Q+.
+     *
+     * @param title Title displayed on the notification.
+     * @param progress Progress percentage (0..100).
+     * @return [ForegroundInfo] configured with unique notification ID and foreground type.
+     */
+    private fun createForegroundInfo(title: String, progress: Int): ForegroundInfo {
+        val notification = createForegroundNotification(title, progress)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
                 notificationId,
@@ -300,17 +341,90 @@ class VideoDownloadWorker(
     }
 
     /**
-     * Displays a completion notification when video download finishes successfully.
+     * Builds completion notification builder directing user to video detail screen with auto-cancel enabled.
      *
      * @param title Title displayed on the completion notification.
+     * @param identifier Unique Archive.org item identifier for deep-link navigation.
+     * @return [NotificationCompat.Builder] configured with autoCancel and detail navigation pending intent.
      */
-    private fun showCompletionNotification(title: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+    internal fun createCompletionNotificationBuilder(title: String, identifier: String): NotificationCompat.Builder {
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Download Complete")
             .setContentText(title)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setAutoCancel(true)
-            .build()
+            .setContentIntent(downloadNavigator.createDetailsPendingIntent(context, identifier))
+    }
+
+    /**
+     * Builds completion notification directing user to video detail screen with auto-cancel enabled.
+     *
+     * @param title Title displayed on the completion notification.
+     * @param identifier Unique Archive.org item identifier for deep-link navigation.
+     * @return [Notification] configured with autoCancel and detail navigation pending intent.
+     */
+    internal fun createCompletionNotification(title: String, identifier: String): Notification {
+        return notificationFactory(createCompletionNotificationBuilder(title, identifier))
+    }
+
+    /**
+     * Displays a completion notification when video download finishes successfully.
+     *
+     * @param title Title displayed on the completion notification.
+     * @param identifier Unique Archive.org item identifier.
+     */
+    private fun showCompletionNotification(title: String, identifier: String) {
+        val notification = createCompletionNotification(title, identifier)
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.notify(notificationId, notification)
+    }
+
+    /**
+     * Builds failure notification builder directing user to video detail screen with auto-cancel enabled.
+     *
+     * @param title Title displayed on the failure notification.
+     * @param identifier Unique Archive.org item identifier for deep-link navigation.
+     * @param reason Failure error description.
+     * @return [NotificationCompat.Builder] configured with autoCancel and detail navigation pending intent.
+     */
+    internal fun createFailureNotificationBuilder(
+        title: String,
+        identifier: String,
+        reason: String
+    ): NotificationCompat.Builder {
+        return NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Download Failed")
+            .setContentText("$title: $reason")
+            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setAutoCancel(true)
+            .setContentIntent(downloadNavigator.createDetailsPendingIntent(context, identifier))
+    }
+
+    /**
+     * Builds failure notification directing user to video detail screen with auto-cancel enabled.
+     *
+     * @param title Title displayed on the failure notification.
+     * @param identifier Unique Archive.org item identifier for deep-link navigation.
+     * @param reason Failure error description.
+     * @return [Notification] configured with autoCancel and detail navigation pending intent.
+     */
+    internal fun createFailureNotification(
+        title: String,
+        identifier: String,
+        reason: String
+    ): Notification {
+        return notificationFactory(createFailureNotificationBuilder(title, identifier, reason))
+    }
+
+    /**
+     * Displays a failure notification when video download fails.
+     *
+     * @param title Title displayed on the failure notification.
+     * @param identifier Unique Archive.org item identifier.
+     * @param reason Failure error description.
+     */
+    private fun showFailureNotification(title: String, identifier: String, reason: String) {
+        val notification = createFailureNotification(title, identifier, reason)
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         notificationManager?.notify(notificationId, notification)
     }

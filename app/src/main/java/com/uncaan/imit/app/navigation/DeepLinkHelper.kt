@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.uncaan.imit.app.MainActivity
+import com.uncaan.imit.core.download.DownloadNotificationNavigator
 
 /**
  * Helper object providing factory methods for deep link [Intent]s and [PendingIntent]s.
@@ -14,10 +15,13 @@ import com.uncaan.imit.app.MainActivity
  * launching a deep link from external sources (e.g., system notifications) preserves
  * predictable back navigation to the Catalog root destination rather than exiting directly to home.
  *
+ * Implements [DownloadNotificationNavigator] to bridge download notification navigation
+ * actions in background workers to application-level deep links.
+ *
  * All generated [PendingIntent] instances enforce [PendingIntent.FLAG_UPDATE_CURRENT] combined
  * with [PendingIntent.FLAG_IMMUTABLE] in compliance with Android 12+ (API 31+) security requirements.
  */
-object DeepLinkHelper {
+object DeepLinkHelper : DownloadNotificationNavigator {
 
     /** Default request code for details destination PendingIntent. */
     const val REQUEST_CODE_DETAILS = 1001
@@ -40,6 +44,11 @@ object DeepLinkHelper {
             MainActivity::class.java
         )
     }
+
+    override fun createDetailsPendingIntent(
+        context: Context,
+        identifier: String
+    ): PendingIntent = createDetailsPendingIntent(context, identifier, REQUEST_CODE_DETAILS)
 
     /**
      * Creates a [PendingIntent] targeting the video detail destination with a synthesized parent stack.
@@ -78,6 +87,10 @@ object DeepLinkHelper {
             MainActivity::class.java
         )
     }
+
+    override fun createDownloadsPendingIntent(
+        context: Context
+    ): PendingIntent = createDownloadsPendingIntent(context, REQUEST_CODE_DOWNLOADS)
 
     /**
      * Creates a [PendingIntent] targeting the downloads destination with a synthesized parent stack.

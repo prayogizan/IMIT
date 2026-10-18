@@ -2,6 +2,7 @@ package com.uncaan.imit.core.download.di
 
 import android.content.Context
 import com.uncaan.imit.core.database.dao.DownloadedVideoDao
+import com.uncaan.imit.core.download.DownloadNotificationNavigator
 import io.mockk.mockk
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -25,10 +26,12 @@ class DownloadModuleTest : KoinTest {
         val mockContext: Context = mockk(relaxed = true)
         val mockOkHttpClient: OkHttpClient = mockk(relaxed = true)
         val mockDownloadDao: DownloadedVideoDao = mockk(relaxed = true)
+        val mockDownloadNavigator: DownloadNotificationNavigator = mockk(relaxed = true)
 
         val testDependenciesModule = module {
             single { mockOkHttpClient }
             single { mockDownloadDao }
+            single { mockDownloadNavigator }
         }
 
         val koinApp = startKoin {

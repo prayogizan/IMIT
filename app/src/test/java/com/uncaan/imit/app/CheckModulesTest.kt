@@ -1,6 +1,7 @@
 package com.uncaan.imit.app
 
 import android.content.Context
+import com.uncaan.imit.app.di.appModule
 import com.uncaan.imit.core.data.repository.VideoRepository
 import com.uncaan.imit.core.database.dao.DownloadedVideoDao
 import com.uncaan.imit.core.database.dao.VideoCacheDao
@@ -30,6 +31,7 @@ class CheckModulesTest : KoinTest {
     @OptIn(KoinExperimentalAPI::class)
     @Test
     fun `verify all Koin modules dependency graph`() {
+        appModule.verify()
         networkModule.verify(
             extraTypes = listOf(
                 Context::class

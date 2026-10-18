@@ -32,13 +32,14 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 | `navigation/NavRoutes.kt` | Route constants, deep link URI templates (`imit://app/...`), and parameterized route builders. |
 | `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations and registered `navDeepLink` patterns for `details/{identifier}` and `downloads`. |
 | `navigation/BottomNavBar.kt` | `NavigationBar` with `BottomNavItem` sealed class. |
-| `navigation/DeepLinkHelper.kt` | Factory for `Intent` and `PendingIntent` deep links using `TaskStackBuilder` to synthesize parent back stack returning to Catalog. |
+| `navigation/DeepLinkHelper.kt` | Factory for `Intent` and `PendingIntent` deep links using `TaskStackBuilder` to synthesize parent back stack returning to Catalog. Implements `DownloadNotificationNavigator`. |
+| `di/AppModule.kt` | Koin module providing `DownloadNotificationNavigator` binding to `DeepLinkHelper`. |
 | `ui/MitOcwApp.kt` | Root composable. `Scaffold` + bottom bar + `NavGraph` with injected `NavHostController`. |
 | `ui/theme/` | App-level theme overrides (Color, Theme, Type). |
 
 ### Key Behaviors
 
-- `IMITApplication` registers 8 Koin modules in order: core first, then features
+- `IMITApplication` registers 9 Koin modules in order: appModule, core first, then features
 - Bottom bar visible only on `catalog` and `downloads` routes
 - Navigation uses `popUpTo(startDestination)` + `saveState`/`restoreState` for tab persistence
 - Custom private deep link scheme `imit://app/...` maps to `details/{identifier}` and `downloads`
@@ -242,17 +243,18 @@ WorkManager background download engine with Koin worker injection, foreground no
 
 | File | Purpose |
 |------|---------|
-| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, and `CancellationException` rethrow rule. |
+| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, deep-link navigation PendingIntents via `DownloadNotificationNavigator`, and `CancellationException` rethrow rule. |
+| `DownloadNotificationNavigator.kt` | Contract providing deep-link `PendingIntent`s for download progress, completion, and failure notifications. Implemented in `:app` by `DeepLinkHelper`. |
 | `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), resume (`ExistingWorkPolicy.REPLACE`), unique work tagging, pause, cancellation with `.tmp` and finalized file cleanup, disk storage checks, reactive single-download `WorkInfo` Flow observation via `getWorkInfoFlow()`, bulk download observation via `getAllDownloadsWorkInfoFlow()` (tagged with `TAG_ALL_DOWNLOADS`), and identifier extraction from `WorkInfo` tags via `getIdentifierFromWorkInfo()`. |
 | `di/DownloadModule.kt` | Koin module providing `DownloadManagerHelper` singleton and `VideoDownloadWorker` via Koin's `worker { }` DSL. |
 
 ### Key Behaviors
 
-- **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
-- **Storage Space Guard:** Downloads abort and fail early if the device has less than 500MB free disk space.
+- **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`, `DownloadNotificationNavigator`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
+- **Storage Space Guard:** Downloads abort and fail early with a failure notification if the device has less than 500MB free disk space.
 - **HTTP Range Resumption:** Writes stream into a temporary file (`.tmp`). When resuming, worker checks existing partial byte length and issues `Range: bytes=<existingBytes>-`. If server returns `206 Partial Content`, appends to `.tmp`; if `200 OK`, restarts from byte 0. Renames `.tmp` to final destination upon completion.
-- **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
-- **Completion Notification:** Triggers a standalone completion notification upon stream finish using the unique item notification ID.
+- **Foreground Notification & Navigation:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Tapping progress opens `DownloadsScreen` (`imit://app/downloads`). Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
+- **Completion & Failure Notifications:** Triggers standalone auto-canceling completion or failure notifications upon stream finish or error (e.g. <500MB storage or network error) using the unique item notification ID. Tapping either notification opens `DetailScreen` (`imit://app/details/{identifier}`).
 - **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; preserves partial `.tmp` file and updates Room status to `PAUSED`. Propagates `CancellationException` without swallowing.
 - **Download Lifecycle APIs:** Exposes `enqueueDownload()` (initial enqueue with `KEEP`), `resumeDownload()` (resumption with `REPLACE`), `pauseDownload()` (cancels unique work triggering cooperative pause in worker), and `cancelDownload()` (cancels work and deletes both `.tmp` and final files).
 
