@@ -140,9 +140,14 @@ override fun onNewIntent(intent: Intent) {
 For system notifications and background tasks, `DeepLinkHelper` synthesizes a full parent back stack using `TaskStackBuilder`:
 
 ```kotlin
-object DeepLinkHelper {
+object DeepLinkHelper : DownloadNotificationNavigator {
     const val REQUEST_CODE_DETAILS = 1001
     const val REQUEST_CODE_DOWNLOADS = 1002
+
+    override fun createDetailsPendingIntent(
+        context: Context,
+        identifier: String
+    ): PendingIntent = createDetailsPendingIntent(context, identifier, REQUEST_CODE_DETAILS)
 
     fun createDetailsPendingIntent(
         context: Context,
@@ -159,6 +164,10 @@ object DeepLinkHelper {
         }
     }
 
+    override fun createDownloadsPendingIntent(
+        context: Context
+    ): PendingIntent = createDownloadsPendingIntent(context, REQUEST_CODE_DOWNLOADS)
+
     fun createDownloadsPendingIntent(
         context: Context,
         requestCode: Int = REQUEST_CODE_DOWNLOADS
@@ -174,6 +183,13 @@ object DeepLinkHelper {
     }
 }
 ```
+
+### Notification Navigation Inversion (`DownloadNotificationNavigator`)
+
+To decouple background download workers in `:core:download` from `:app` without circular dependencies, `:core:download` defines `DownloadNotificationNavigator`. `DeepLinkHelper` implements this contract in `:app`, and Koin registers it via `appModule`:
+- **Active Progress:** Worker attaches `createDownloadsPendingIntent(context)` to progress notification, opening `DownloadsScreen` (`imit://app/downloads`) with ongoing status (`FLAG_ONGOING_EVENT`).
+- **Completion Alert:** Worker attaches `createDetailsPendingIntent(context, identifier)` to completion notification with auto-cancel (`FLAG_AUTO_CANCEL`), opening `DetailScreen` (`imit://app/details/{identifier}`).
+- **Failure Alert:** Worker attaches `createDetailsPendingIntent(context, identifier)` to failure notification with auto-cancel (`FLAG_AUTO_CANCEL`) on storage exhaustion (<500MB) or network errors.
 
 ### Parent Back Stack Guarantee
 

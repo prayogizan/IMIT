@@ -7,6 +7,7 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.memory.MemoryCache
+import com.uncaan.imit.app.di.appModule
 import com.uncaan.imit.core.database.di.databaseModule
 import com.uncaan.imit.core.download.di.downloadModule
 import com.uncaan.imit.core.network.di.dataModule
@@ -38,6 +39,8 @@ class IMITApplication : Application(), SingletonImageLoader.Factory {
             androidContext(this@IMITApplication)
             workManagerFactory()
             modules(
+                // App
+                appModule,
                 // Core
                 networkModule,
                 dataModule,
