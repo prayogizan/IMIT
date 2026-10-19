@@ -56,6 +56,10 @@ module/
 | `feature:details` | `DetailViewModelTest.kt` | Video details, quality selection, background playback toggle, navigate-away pause, and download lifecycle controls |
 | `app` | `CheckModulesTest.kt` | Koin 4 verify() dependency graph validation |
 | | `KoinSetupTest.kt` | Full DI module initialization validation |
+| | `DeepLinkHelperTest.kt` | Intent/PendingIntent synthesis, TaskStackBuilder flags, request code isolation, DownloadNotificationNavigator delegation |
+| | `DeepLinkNavigationTest.kt` | Deep link route matching (imit://app/...) and synthetic back stack fallback to Catalog |
+| | `BottomNavVisibilityTest.kt` | Bottom navigation bar visibility and items validation |
+| | `NavRoutesTest.kt` | Route paths, URI encoding/decoding, deep link scheme constants |
 
 ## ViewModel Test Pattern
 

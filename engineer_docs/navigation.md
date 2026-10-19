@@ -108,8 +108,19 @@ NavHost(
 IMIT registers a custom private URI scheme for internal and external navigation:
 - Scheme: `imit`
 - Host: `app`
-- Manifest Filter:
-  ```xml
+
+### URI Scheme Reference
+
+| Destination | Route Constant | Deep Link URI Template | Arguments | Target Component |
+|-------------|----------------|------------------------|-----------|------------------|
+| Catalog | `NavRoutes.CATALOG` | `imit://app/catalog` | None | `CatalogScreen` (Root) |
+| Video Details | `NavRoutes.DETAILS` | `imit://app/details/{identifier}` | `identifier` (String) | `DetailScreen` |
+| Downloads | `NavRoutes.DOWNLOADS` | `imit://app/downloads` | None | `DownloadsScreen` |
+| Video Player | `NavRoutes.PLAYER` | `imit://app/player?url={videoUrl}` | `videoUrl` (URL-encoded String) | `VideoPlayerScreen` |
+
+### Manifest Filter Configuration
+
+```xml
   <activity
       android:name=".MainActivity"
       android:launchMode="singleTop" ...>
