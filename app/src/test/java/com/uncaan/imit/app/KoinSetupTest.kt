@@ -1,5 +1,6 @@
 package com.uncaan.imit.app
 
+import com.uncaan.imit.app.di.appModule
 import com.uncaan.imit.core.database.di.databaseModule
 import com.uncaan.imit.core.download.di.downloadModule
 import com.uncaan.imit.core.network.di.dataModule
@@ -26,6 +27,7 @@ class KoinSetupTest : KoinTest {
     fun `verify all Koin modules can be initialized together`() {
         val koinApp = startKoin {
             modules(
+                appModule,
                 networkModule,
                 dataModule,
                 databaseModule,

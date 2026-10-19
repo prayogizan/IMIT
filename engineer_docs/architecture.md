@@ -12,6 +12,8 @@ graph TB
         NAV[MitOcwNavGraph]
         BNB[BottomNavBar]
         MAPP[MitOcwApp]
+        DLH[DeepLinkHelper]
+        MOD[AppModule]
     end
 
     subgraph "Feature Modules"
@@ -33,9 +35,12 @@ graph TB
         API[Archive.org API]
         SQLITE[(SQLite / Room)]
         EXOP[ExoPlayer / Media3]
+        NOTIF[Android Notification Manager]
     end
 
     APP --> NAV
+    APP --> MOD
+    MOD -.->|provides DownloadNotificationNavigator| DLH
     MA --> MAPP
     MAPP --> NAV
     MAPP --> BNB
@@ -62,7 +67,11 @@ graph TB
     DB --> SQLITE
     DB --> MDL
     PLR --> EXOP
+    PLR -.->|sessionActivity PendingIntent| DLH
     DWN --> DB
+    DWN -.->|DownloadNotificationNavigator| DLH
+    DWN --> NOTIF
+    PLR --> NOTIF
 ```
 
 ## Module Dependency Graph
@@ -211,6 +220,52 @@ class {Feature}ViewModel(
 ```
 
 Single `onEvent()` entry point. No public methods besides `onEvent()` and read-only state.
+
+## Deep Linking & Notification Navigation Architecture
+
+Sprint 8 establishes deterministic deep link routing and synthetic parent back stack reconstruction for all system notifications (Media3 playback notification and WorkManager download alerts).
+
+### Architectural Inversion & Security
+
+1. **URI Scheme Contract:** Standardized on `imit://app/{route}` (`catalog`, `details/{identifier}`, `downloads`, `player?url={videoUrl}`).
+2. **Dependency Inversion:** `:core:download` defines `DownloadNotificationNavigator` interface. `:app` implements it via `DeepLinkHelper` and registers the binding in `AppModule`. Background workers invoke navigation without circular dependencies.
+3. **MediaSession Integration:** `VideoPlaybackService` in `:core:player` configures `mediaSession.setSessionActivity(pendingIntent)` using `DeepLinkHelper.createDetailsPendingIntent(context, activeIdentifier)`.
+4. **Android 12+ Compliance:** All generated `PendingIntent`s combine `FLAG_UPDATE_CURRENT` with `FLAG_IMMUTABLE` and unique request codes (`1001` for details, `1002` for downloads) to prevent intent collision.
+5. **Back Stack Guarantee:** `TaskStackBuilder` synthesizes parent back stack on cold start; `MitOcwNavGraph` guarantees fallback pop navigation (`if (!navController.popBackStack()) navigate(CATALOG)`) so Back press never traps or unexpectedly exits.
+
+### Notification Click & Synthetic Back Stack Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Learner
+    participant OS as Android Notification Drawer
+    participant TSB as TaskStackBuilder / Intent Filter
+    participant App as MainActivity (singleTop)
+    participant Nav as MitOcwNavGraph / NavHost
+    participant Screen as DetailScreen / DownloadsScreen
+    participant Catalog as CatalogScreen (Root Destination)
+
+    Learner->>OS: Taps Notification (Media or Download Alert)
+    OS->>TSB: Fires PendingIntent (imit://app/...)
+    alt App Cold Start
+        TSB->>App: onCreate() with synthetic parent stack
+        App->>Nav: Initialize NavHost with Start Destination (catalog)
+        Nav->>Screen: Deep link matched (details/{id} or downloads)
+    else App Warm Start
+        TSB->>App: onNewIntent(intent)
+        App->>Nav: navController.handleDeepLink(intent)
+        Nav->>Screen: Navigates to target destination
+    end
+    Learner->>Screen: Views lecture / download telemetry
+    Learner->>Screen: Presses Back
+    alt Standard Stack (popBackStack succeeds)
+        Screen->>Catalog: Returns to Catalog tab
+    else Isolated Root (popBackStack fails)
+        Screen->>Nav: Fallback popUpTo(0) inclusive -> navigate(catalog)
+        Nav->>Catalog: Guarantees user returns to Catalog
+    end
+```
 
 ## Layer Architecture
 

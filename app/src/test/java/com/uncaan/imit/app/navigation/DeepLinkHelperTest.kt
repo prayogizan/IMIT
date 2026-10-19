@@ -114,4 +114,29 @@ class DeepLinkHelperTest {
         verify { mockStackBuilder.getPendingIntent(DeepLinkHelper.REQUEST_CODE_DOWNLOADS, expectedFlags) }
         assertNotNull(intentSlot.captured)
     }
+
+    @Test
+    fun `DownloadNotificationNavigator interface createDetailsPendingIntent delegates with REQUEST_CODE_DETAILS`() {
+        val navigator: com.uncaan.imit.core.download.DownloadNotificationNavigator = DeepLinkHelper
+        val expectedFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val identifier = "mit-ocw-ai"
+
+        val result = navigator.createDetailsPendingIntent(mockContext, identifier)
+
+        assertNotNull(result)
+        assertEquals(mockPendingIntent, result)
+        verify { mockStackBuilder.getPendingIntent(DeepLinkHelper.REQUEST_CODE_DETAILS, expectedFlags) }
+    }
+
+    @Test
+    fun `DownloadNotificationNavigator interface createDownloadsPendingIntent delegates with REQUEST_CODE_DOWNLOADS`() {
+        val navigator: com.uncaan.imit.core.download.DownloadNotificationNavigator = DeepLinkHelper
+        val expectedFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+        val result = navigator.createDownloadsPendingIntent(mockContext)
+
+        assertNotNull(result)
+        assertEquals(mockPendingIntent, result)
+        verify { mockStackBuilder.getPendingIntent(DeepLinkHelper.REQUEST_CODE_DOWNLOADS, expectedFlags) }
+    }
 }
