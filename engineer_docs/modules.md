@@ -25,21 +25,26 @@ Entry point. Wires all Koin modules, hosts navigation graph and bottom bar.
 
 | File | Purpose |
 |------|---------|
-| `AndroidManifest.xml` | Declares application metadata, `MainActivity` configuration change flags (`screenSize`, `orientation`), WorkManager initializer override, and runtime permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`). |
+| `AndroidManifest.xml` | Declares application metadata, `MainActivity` configuration change flags (`screenSize`, `orientation`), `launchMode="singleTop"`, deep link intent-filter (`imit://app/...`), WorkManager initializer override, and runtime permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `POST_NOTIFICATIONS`). |
 | `IMITApplication.kt` | `Application` subclass. Initializes Koin and implements `SingletonImageLoader.Factory` (15% RAM max, 50MB disk). |
 | `baseline-prof.txt` | Baseline profile rules for Ahead-of-Time (AOT) compilation (<1.5s cold start). |
-| `MainActivity.kt` | Single Activity. Sets `MitOcwTheme` and renders `MitOcwApp`. |
-| `navigation/NavRoutes.kt` | Route constants and parameterized route builders. |
-| `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations. |
+| `MainActivity.kt` | Single Activity (`launchMode="singleTop"`). Sets `MitOcwTheme`, renders `MitOcwApp`, and delegates warm-start incoming intents to `navController.handleDeepLink(intent)` via `onNewIntent`. |
+| `navigation/NavRoutes.kt` | Route constants, deep link URI templates (`imit://app/...`), and parameterized route builders. |
+| `navigation/MitOcwNavGraph.kt` | `NavHost` with all screen composable destinations and registered `navDeepLink` patterns for `details/{identifier}` and `downloads`. |
 | `navigation/BottomNavBar.kt` | `NavigationBar` with `BottomNavItem` sealed class. |
-| `ui/MitOcwApp.kt` | Root composable. `Scaffold` + bottom bar + `NavGraph`. |
+| `navigation/DeepLinkHelper.kt` | Factory for `Intent` and `PendingIntent` deep links using `TaskStackBuilder` to synthesize parent back stack returning to Catalog. Implements `DownloadNotificationNavigator`. |
+| `di/AppModule.kt` | Koin module providing `DownloadNotificationNavigator` binding to `DeepLinkHelper`. |
+| `ui/MitOcwApp.kt` | Root composable. `Scaffold` + bottom bar + `NavGraph` with injected `NavHostController`. |
 | `ui/theme/` | App-level theme overrides (Color, Theme, Type). |
 
 ### Key Behaviors
 
-- `IMITApplication` registers 8 Koin modules in order: core first, then features
+- `IMITApplication` registers 9 Koin modules in order: appModule, core first, then features
 - Bottom bar visible only on `catalog` and `downloads` routes
 - Navigation uses `popUpTo(startDestination)` + `saveState`/`restoreState` for tab persistence
+- Custom private deep link scheme `imit://app/...` maps to `details/{identifier}` and `downloads`
+- `DeepLinkHelper` synthesizes parent back stack with `TaskStackBuilder`, ensuring Back press from notifications returns to `catalog`
+- `MainActivity` processes new intents without activity re-creation via `onNewIntent(intent)`
 
 ---
 
@@ -197,8 +202,9 @@ Client facade and background `MediaSessionService` for video and audio playback.
 | `AndroidManifest.xml` | Declares foreground service permissions (`FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`) and registers `VideoPlaybackService` with `foregroundServiceType="mediaPlayback"`. |
 | `MediaNotificationChannelHelper.kt` | Utility configuring and registering the low-importance `imit_media_playback` channel (`IMPORTANCE_LOW`, silent, no badge, public lockscreen visibility). |
 | `IMITMediaNotificationProvider.kt` | Custom `MediaNotification.Provider` configuring media notification appearance, metadata, artwork loading, ongoing/dismissible lifecycle, and 4 transport buttons (Skip Back 10s, Play/Pause, Skip Forward 10s, Stop) with dedicated `NOTIFICATION_ID = 2001`. |
-| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, and notification provider registration. |
-| `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`. |
+| `VideoPlaybackService.kt` | Foreground `MediaSessionService` managing `ExoPlayer` and `MediaSession` lifecycle for background audio/video playback, audio focus handling, notification provider registration, and dynamic `sessionActivity` deep link updates on media transitions. |
+| `MediaSessionActivityHelper.kt` | Utility constructing synthesized parent back stack [android.app.PendingIntent]s via [android.app.TaskStackBuilder] targeting `imit://app/details/{identifier}` with `FLAG_UPDATE_CURRENT or FLAG_IMMUTABLE` for [androidx.media3.session.MediaSession.setSessionActivity]. |
+| `VideoPlayerManager.kt` | Singleton client facade connecting to `VideoPlaybackService` via `MediaController` and `SessionToken`, attaching active lecture `identifier` to `mediaId` and metadata extras. |
 | `IMITMediaSessionCallback.kt` | Custom `MediaSession.Callback` implementation handling playback transport commands (play, pause, seek, stop) and custom 10s skip commands for external/System UI controllers. |
 | `PipHelper.kt` | Picture-in-Picture (PiP) helper for Android O+ with 16:9 aspect ratio and Activity extension. |
 | `PlaybackServiceHelper.kt` | Helper utility and top-level `shouldUseBackgroundService()` providing API level check (API 26+) for foreground service gating and pre-Oreo fallback. |
@@ -208,6 +214,7 @@ Client facade and background `MediaSessionService` for video and audio playback.
 ### Player Features
 
 - Background audio playback: persists across navigation, lock screen, and home actions via `VideoPlaybackService` (`MediaSessionService`) foreground service
+- MediaSession sessionActivity deep link binding: binds immutable `PendingIntent` for `imit://app/details/{identifier}` (reserved request code 2002) synthesized via `TaskStackBuilder`; dynamically refreshed on `onMediaItemTransition` so tapping the system notification drawer or lock screen banner returns directly to the active lecture without interrupting background playback
 - Notification channel: `imit_media_playback` registered with `IMPORTANCE_LOW` (silent, no vibration) and public lockscreen visibility
 - Media notification controls: `IMITMediaNotificationProvider` hosts Skip Back 10s (`ACTION_SKIP_BACK`), Play/Pause toggle, Skip Forward 10s (`ACTION_SKIP_FORWARD`), and Stop (`COMMAND_STOP`)
 - Compact notification view: 3 priority action indices (0: Skip Back, 1: Play/Pause, 2: Skip Forward) mapped via `MediaStyle.setShowActionsInCompactView`
@@ -238,17 +245,18 @@ WorkManager background download engine with Koin worker injection, foreground no
 
 | File | Purpose |
 |------|---------|
-| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, and `CancellationException` rethrow rule. |
+| `VideoDownloadWorker.kt` | `CoroutineWorker` injected via Koin. Manages OkHttp stream with 8KB buffer, StatFs storage guard (<500MB), low-importance foreground notification with progress bar, HTTP Range byte resumption (`Range: bytes=<size>-`), `.tmp` partial file preservation on cooperative cancellation/pause, deep-link navigation PendingIntents via `DownloadNotificationNavigator`, and `CancellationException` rethrow rule. |
+| `DownloadNotificationNavigator.kt` | Contract providing deep-link `PendingIntent`s for download progress, completion, and failure notifications. Implemented in `:app` by `DeepLinkHelper`. |
 | `DownloadManagerHelper.kt` | Helper service managing `WorkManager` enqueue (`ExistingWorkPolicy.KEEP`), resume (`ExistingWorkPolicy.REPLACE`), unique work tagging, pause, cancellation with `.tmp` and finalized file cleanup, disk storage checks, reactive single-download `WorkInfo` Flow observation via `getWorkInfoFlow()`, bulk download observation via `getAllDownloadsWorkInfoFlow()` (tagged with `TAG_ALL_DOWNLOADS`), and identifier extraction from `WorkInfo` tags via `getIdentifierFromWorkInfo()`. |
 | `di/DownloadModule.kt` | Koin module providing `DownloadManagerHelper` singleton and `VideoDownloadWorker` via Koin's `worker { }` DSL. |
 
 ### Key Behaviors
 
-- **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
-- **Storage Space Guard:** Downloads abort and fail early if the device has less than 500MB free disk space.
+- **Koin Worker Injection:** `VideoDownloadWorker` constructor dependencies (`Context`, `WorkerParameters`, `OkHttpClient`, `DownloadedVideoDao`, `DownloadNotificationNavigator`) are injected via Koin's `worker { }` DSL and `workManagerFactory()`.
+- **Storage Space Guard:** Downloads abort and fail early with a failure notification if the device has less than 500MB free disk space.
 - **HTTP Range Resumption:** Writes stream into a temporary file (`.tmp`). When resuming, worker checks existing partial byte length and issues `Range: bytes=<existingBytes>-`. If server returns `206 Partial Content`, appends to `.tmp`; if `200 OK`, restarts from byte 0. Renames `.tmp` to final destination upon completion.
-- **Foreground Notification:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
-- **Completion Notification:** Triggers a standalone completion notification upon stream finish using the unique item notification ID.
+- **Foreground Notification & Navigation:** Ongoing low-importance notification displays real-time percentage progress with a deterministic, unique notification ID mapped from the item identifier (`abs(identifier.hashCode().toLong()) % 100_000 + 1000`), preventing notification collisions during concurrent downloads. Tapping progress opens `DownloadsScreen` (`imit://app/downloads`). Uses `FOREGROUND_SERVICE_TYPE_DATA_SYNC` on Android 10+ (API 29+).
+- **Completion & Failure Notifications:** Triggers standalone auto-canceling completion or failure notifications upon stream finish or error (e.g. <500MB storage or network error) using the unique item notification ID. Tapping either notification opens `DetailScreen` (`imit://app/details/{identifier}`).
 - **Coroutines & Cooperative Cancellation:** Listens to `isStopped` during stream reading; preserves partial `.tmp` file and updates Room status to `PAUSED`. Propagates `CancellationException` without swallowing.
 - **Download Lifecycle APIs:** Exposes `enqueueDownload()` (initial enqueue with `KEEP`), `resumeDownload()` (resumption with `REPLACE`), `pauseDownload()` (cancels unique work triggering cooperative pause in worker), and `cancelDownload()` (cancels work and deletes both `.tmp` and final files).
 

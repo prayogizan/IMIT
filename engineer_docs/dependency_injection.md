@@ -14,11 +14,13 @@ startKoin {
     androidContext(this@IMITApplication)
     workManagerFactory()
     modules(
+        // App
+        appModule,          // DownloadNotificationNavigator binding
         // Core (order: dependencies first)
         networkModule,      // OkHttp, Retrofit, Json, ApiService
         dataModule,         // VideoRepository binding
         databaseModule,     // Room database, DAOs
-        downloadModule,     // Download workers (WIP)
+        downloadModule,     // DownloadManagerHelper, VideoDownloadWorker
         playerModule,       // VideoPlayerManager
         // Features
         catalogModule,      // CatalogViewModel
@@ -29,6 +31,12 @@ startKoin {
 ```
 
 ## Module Definitions
+
+### `appModule` (`:app`)
+
+| Scope | Type | Binding |
+|-------|------|---------|
+| `single` | `DownloadNotificationNavigator` | `DeepLinkHelper` |
 
 ### `networkModule` (`core:network`)
 
@@ -75,7 +83,7 @@ Interface binding: `single<VideoRepository> { VideoRepositoryImpl(...) }`
 | Scope | Type | Binding |
 |-------|------|---------|
 | `single` | `DownloadManagerHelper` | `DownloadManagerHelper(androidContext())` |
-| `worker` | `VideoDownloadWorker` | `VideoDownloadWorker(get(), get(), get(), get())` |
+| `worker` | `VideoDownloadWorker` | `VideoDownloadWorker(get(), get(), get(), get(), get())` |
 
 ### `catalogModule` (`feature:catalog`)
 

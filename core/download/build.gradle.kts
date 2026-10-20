@@ -14,9 +14,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
+    implementation(libs.core.ktx)
     implementation(project(":core:model"))
     implementation(project(":core:database"))
 

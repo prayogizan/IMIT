@@ -21,7 +21,8 @@ val downloadModule = module {
             context = get(),
             workerParams = get(),
             okHttpClient = get(),
-            downloadDao = get()
+            downloadDao = get(),
+            downloadNavigator = get()
         )
     }
 }

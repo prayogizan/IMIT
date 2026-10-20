@@ -22,6 +22,9 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.all {
+            it.jvmArgs("-XX:TieredStopAtLevel=1")
+        }
     }
 }
 

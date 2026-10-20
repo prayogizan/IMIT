@@ -40,4 +40,26 @@ class NavRoutesTest {
         val emptyRoute = NavRoutes.playerRoute("")
         assertEquals("player?url=", emptyRoute)
     }
+
+    @Test
+    fun `verify deep link constants`() {
+        assertEquals("imit", NavRoutes.DEEP_LINK_SCHEME)
+        assertEquals("app", NavRoutes.DEEP_LINK_HOST)
+        assertEquals("imit://app", NavRoutes.DEEP_LINK_BASE_URI)
+        assertEquals("imit://app/details/{identifier}", NavRoutes.DETAILS_DEEP_LINK_PATTERN)
+        assertEquals("imit://app/downloads", NavRoutes.DOWNLOADS_DEEP_LINK_PATTERN)
+    }
+
+    @Test
+    fun `detailsDeepLinkUri builds expected URI`() {
+        val identifier = "mit-ocw-18.01-lec01"
+        val expected = "imit://app/details/mit-ocw-18.01-lec01"
+        assertEquals(expected, NavRoutes.detailsDeepLinkUri(identifier))
+    }
+
+    @Test
+    fun `downloadsDeepLinkUri builds expected URI`() {
+        val expected = "imit://app/downloads"
+        assertEquals(expected, NavRoutes.downloadsDeepLinkUri())
+    }
 }
